@@ -26,7 +26,7 @@ the tunnel.
 
 1. Zero Trust → Networks → Tunnels → create a tunnel, pick **Docker**, copy the token.
 2. Put it in `.env` as `TUNNEL_TOKEN`.
-3. In the tunnel's **Public hostname** tab: `afro.offlinebot.xyz` → `HTTP` → `web:80`.
+3. In the tunnel's **Public hostname** tab: `afro.offlinebot.xyz` → service URL `http://web:80`. The scheme is required; `web:80` alone is rejected.
 
 `cloudflared` reaches `web` over the compose network, so nothing has to be port-forwarded.
 
