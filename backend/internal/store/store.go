@@ -69,10 +69,6 @@ func (s *Store) Migrate(ctx context.Context) error {
 			note     text NOT NULL DEFAULT '',
 			position integer NOT NULL DEFAULT 0
 		);
-		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS position integer NOT NULL DEFAULT 0;
-		-- Reordering always writes 1..n, so position 0 marks a row that never got one.
-		UPDATE subjects SET position = id WHERE position = 0;
-		UPDATE tasks SET position = id WHERE position = 0;
 		CREATE TABLE IF NOT EXISTS tasks (
 			id       serial PRIMARY KEY,
 			name     text NOT NULL UNIQUE,
@@ -85,8 +81,14 @@ func (s *Store) Migrate(ctx context.Context) error {
 			computed   boolean NOT NULL DEFAULT false,
 			PRIMARY KEY (subject_id, task_id)
 		);
+
+		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS position integer NOT NULL DEFAULT 0;
 		ALTER TABLE scores ALTER COLUMN value DROP NOT NULL;
 		ALTER TABLE scores ADD COLUMN IF NOT EXISTS computed boolean NOT NULL DEFAULT false;
+
+		-- Reordering always writes 1..n, so position 0 marks a row that never got one.
+		UPDATE subjects SET position = id WHERE position = 0;
+		UPDATE tasks SET position = id WHERE position = 0;
 		UPDATE scores SET computed = true WHERE value IS NOT NULL AND NOT computed;
 	`)
 	return err
