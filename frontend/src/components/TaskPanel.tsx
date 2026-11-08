@@ -3,7 +3,7 @@ import { moved, useAction } from "../lib/useAction";
 import type { Data } from "../lib/useData";
 import { AddForm, TextCell } from "./fields";
 
-export default function TaskPanel({ data }: { data: Data }) {
+export default function TaskPanel({ data, admin }: { data: Data; admin: boolean }) {
   const { run, error } = useAction(data.reload);
 
   const move = (index: number, to: number) =>
@@ -16,7 +16,9 @@ export default function TaskPanel({ data }: { data: Data }) {
         <span className="muted">every table uses this list</span>
       </div>
 
-      <AddForm placeholder="New task" onAdd={(name) => run(() => api.createTask(name))} />
+      {admin && (
+        <AddForm placeholder="New task" onAdd={(name) => run(() => api.createTask(name))} />
+      )}
       {error && <p className="error">{error}</p>}
 
       {data.tasks.length === 0 ? (
@@ -30,36 +32,42 @@ export default function TaskPanel({ data }: { data: Data }) {
                   {index + 1}
                 </td>
                 <td>
-                  <TextCell
-                    value={task.name}
-                    onSave={(name) => run(() => api.updateTask(task.id, name))}
-                  />
+                  {admin ? (
+                    <TextCell
+                      value={task.name}
+                      onSave={(name) => run(() => api.updateTask(task.id, name))}
+                    />
+                  ) : (
+                    task.name
+                  )}
                 </td>
-                <td style={{ width: 1 }}>
-                  <button
-                    className="btn-ghost"
-                    title="Move up"
-                    disabled={index === 0}
-                    onClick={() => move(index, index - 1)}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    className="btn-ghost"
-                    title="Move down"
-                    disabled={index === data.tasks.length - 1}
-                    onClick={() => move(index, index + 1)}
-                  >
-                    ↓
-                  </button>
-                  <button
-                    className="btn-ghost"
-                    title="Delete"
-                    onClick={() => run(() => api.deleteTask(task.id))}
-                  >
-                    ✕
-                  </button>
-                </td>
+                {admin && (
+                  <td style={{ width: 1 }}>
+                    <button
+                      className="btn-ghost"
+                      title="Move up"
+                      disabled={index === 0}
+                      onClick={() => move(index, index - 1)}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      className="btn-ghost"
+                      title="Move down"
+                      disabled={index === data.tasks.length - 1}
+                      onClick={() => move(index, index + 1)}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      className="btn-ghost"
+                      title="Delete"
+                      onClick={() => run(() => api.deleteTask(task.id))}
+                    >
+                      ✕
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

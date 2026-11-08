@@ -114,15 +114,7 @@ export default function App() {
 
         {!data.loading && tab === "scores" && <ScoreTables data={data} admin={admin} />}
 
-        {!data.loading &&
-          tab === "tasks" &&
-          (admin ? (
-            <TaskPanel data={data} />
-          ) : (
-            <div className="card">
-              <div className="empty">log in to edit</div>
-            </div>
-          ))}
+        {!data.loading && tab === "tasks" && <TaskPanel data={data} admin={admin} />}
       </main>
     </div>
   );
