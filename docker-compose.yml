@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: afro
+      POSTGRES_PASSWORD: afro
+      POSTGRES_DB: afro
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U afro -d afro"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    image: golang:1.25-alpine
+    working_dir: /app
+    command: go run .
+    environment:
+      DATABASE_URL: postgres://afro:afro@db:5432/afro?sslmode=disable
+      ADMIN_PASSWORD: admin
+      PORT: "8080"
+    volumes:
+      - ./backend:/app
+      - go-mod:/go/pkg/mod
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 8764"
+    environment:
+      BACKEND_URL: http://backend:8080
+    ports:
+      - "8764:8764"
+    volumes:
+      - ./frontend:/app
+      - node-modules:/app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  db-data:
+  go-mod:
+  node-modules:
