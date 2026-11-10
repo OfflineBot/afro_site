@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { MAX_SERIES } from "../lib/colors";
+import { MAX_SERIES, SERIES } from "../lib/colors";
 import { format } from "../lib/format";
 import type { Score, Subject, Task } from "../lib/api";
 
@@ -22,9 +22,17 @@ type Props = {
   cell: (subjectId: number, taskId: number) => Score | undefined;
   subjectColor: (id: number) => string;
   taskColor: (id: number) => string;
+  isReference: (subjectId: number) => boolean;
 };
 
-export default function ScoreChart({ subjects, tasks, cell, subjectColor, taskColor }: Props) {
+export default function ScoreChart({
+  subjects,
+  tasks,
+  cell,
+  subjectColor,
+  taskColor,
+  isReference,
+}: Props) {
   const [mode, setMode] = useState<Mode>("task");
   const [view, setView] = useState<View>("bars");
 
@@ -37,6 +45,7 @@ export default function ScoreChart({ subjects, tasks, cell, subjectColor, taskCo
   const rows = groups.map((group) => {
     const row: Record<string, string | number> = { name: group.name };
     for (const item of series) {
+      const subjectId = byTask ? item.id : group.id;
       const score = byTask ? cell(item.id, group.id) : cell(group.id, item.id);
       if (score?.value != null) {
         row["k" + item.id] = score.value;
@@ -44,6 +53,7 @@ export default function ScoreChart({ subjects, tasks, cell, subjectColor, taskCo
         row["k" + item.id] = 0;
         row["p" + item.id] = 1;
       }
+      if (isReference(subjectId)) row["r" + item.id] = 1;
     }
     return row;
   });
@@ -76,6 +86,24 @@ export default function ScoreChart({ subjects, tasks, cell, subjectColor, taskCo
           </button>
         </div>
       </div>
+
+      <svg width="0" height="0" aria-hidden="true" className="chart-defs">
+        <defs>
+          {SERIES.map((color, index) => (
+            <pattern
+              key={color}
+              id={`hatch-${index}`}
+              width="6"
+              height="6"
+              patternUnits="userSpaceOnUse"
+              patternTransform="rotate(45)"
+            >
+              <rect width="6" height="6" fill={color} opacity="0.35" />
+              <rect width="3" height="6" fill={color} />
+            </pattern>
+          ))}
+        </defs>
+      </svg>
 
       {empty ? (
         <div className="empty">nothing selected</div>
@@ -121,7 +149,10 @@ export default function ScoreChart({ subjects, tasks, cell, subjectColor, taskCo
             <div className="legend">
               {series.map((item) => (
                 <span key={item.id}>
-                  <span className="swatch" style={{ background: colorOf(item.id) }} />
+                  <span
+                    className={byTask && isReference(item.id) ? "swatch ref" : "swatch"}
+                    style={{ backgroundColor: colorOf(item.id) }}
+                  />
                   {item.name}
                 </span>
               ))}
@@ -195,7 +226,19 @@ type BarShapeProps = {
 
 function BarShape(props: BarShapeProps) {
   const { x = 0, y = 0, width = 0, fill, dataKey, payload } = props;
-  if (!payload?.[pendingKey(dataKey)]) return <Rectangle {...props} radius={[4, 4, 0, 0]} />;
+  const key = String(dataKey).slice(1);
+
+  if (!payload?.["p" + key]) {
+    const slot = SERIES.indexOf(fill ?? "");
+    const textured = payload?.["r" + key] && slot >= 0;
+    return (
+      <Rectangle
+        {...props}
+        fill={textured ? `url(#hatch-${slot})` : fill}
+        radius={[4, 4, 0, 0]}
+      />
+    );
+  }
 
   const height = 12;
   return (
@@ -244,7 +287,7 @@ function ChartTooltip({
         <div className="tooltip-row" key={item.name}>
           <span
             className={isPending(item) ? "swatch-outline" : "swatch"}
-            style={isPending(item) ? { borderColor: item.color } : { background: item.color }}
+            style={isPending(item) ? { borderColor: item.color } : { backgroundColor: item.color }}
           />
           {item.name}
           <span className="val">{isPending(item) ? "pending" : format(item.value ?? 0)}</span>

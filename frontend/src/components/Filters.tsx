@@ -8,13 +8,30 @@ type Props = {
   onShowAll: () => void;
   onHideAll: () => void;
   colorOf?: (id: number) => string | undefined;
+  isReference?: (id: number) => boolean;
 };
 
-export default function Filters({ title, items, isShown, onToggle, onShowAll, onHideAll, colorOf }: Props) {
+export default function Filters({
+  title,
+  items,
+  isShown,
+  onToggle,
+  onShowAll,
+  onHideAll,
+  colorOf,
+  isReference,
+}: Props) {
+  const anyReference = items.some((item) => isReference?.(item.id));
+
   return (
     <div className="card">
       <div className="card-head">
         <h2>{title}</h2>
+        {anyReference && (
+          <span className="muted filter-key">
+            <span className="swatch ref" /> reference
+          </span>
+        )}
         <span className="spacer" style={{ flex: 1 }} />
         <button className="btn" onClick={onShowAll}>
           All
@@ -30,17 +47,18 @@ export default function Filters({ title, items, isShown, onToggle, onShowAll, on
           {items.map((item) => {
             const shown = isShown(item.id);
             const color = colorOf?.(item.id);
+            const reference = isReference?.(item.id) ?? false;
             return (
               <button
                 key={item.id}
-                className="chip"
+                className={reference ? "chip chip-ref" : "chip"}
                 aria-pressed={shown}
                 onClick={() => onToggle(item.id)}
               >
                 {color && (
                   <span
-                    className="swatch"
-                    style={{ background: shown ? color : "var(--surface1)" }}
+                    className={reference ? "swatch ref" : "swatch"}
+                    style={{ backgroundColor: shown ? color : "var(--surface1)" }}
                   />
                 )}
                 {item.name}

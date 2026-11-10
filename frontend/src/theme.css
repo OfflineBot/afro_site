@@ -515,3 +515,57 @@ input[type="checkbox"]:disabled {
   margin: 8px 0 0;
   font-size: 12px;
 }
+
+/* reference subjects: the hue stays the entity's, the texture marks the class */
+.swatch.ref {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgb(0 0 0 / 0.55) 0 2px,
+    transparent 2px 4px
+  );
+}
+
+.chip-ref {
+  border-style: dashed;
+}
+
+.filter-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.filter-key .swatch,
+.badge .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background-color: var(--overlay0);
+}
+
+.badge .swatch {
+  margin-right: 5px;
+  vertical-align: -1px;
+  display: inline-block;
+}
+
+.subtitle-row {
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.subtitle-row .note-input {
+  flex: 1;
+  width: auto;
+}
+
+.subtitle-row .chip {
+  flex: none;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
+.chart-defs {
+  position: absolute;
+}

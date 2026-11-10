@@ -35,9 +35,12 @@ the tunnel.
 - **Chart** — pick subjects and tasks with the two filters, group the bars `by task` or
   `by subject`, switch to `table` for the raw numbers. A task that is computed but has no
   number yet shows as a dashed stub on the baseline instead of being silently absent.
+  Reference subjects keep their own colour and are drawn with a hatched fill, so they read
+  apart from your own benchmarks in both the filter chips and the bars.
 - **Scores** — one table per subject, task rows with a Done mark and the score. Tick *Done*
   for a task that is computed while the number is still pending; typing a score ticks it.
-  Empty the score field to take the number back out. Tables reorder with ↑ ↓.
+  Empty the score field to take the number back out. Tables reorder with ↑ ↓. Mark a subject
+  *reference* when it is not one of your own benchmarks.
 - **Tasks** — the shared task list every table uses. Add, rename, reorder, delete.
 
 Editing needs a password (no user name), kept in `localStorage`. It defaults to `admin`
@@ -63,3 +66,6 @@ frontend/   React + Vite; dev server in development, nginx build in production
 
 `PUT /api/scores` takes `{subject_id, task_id, value, computed}`. A `value` implies
 `computed`; sending neither removes the row.
+
+`PATCH /api/subjects/:id` replaces the whole subject, so send `reference` along with
+`name` and `note` — a missing `reference` reads as `false`.

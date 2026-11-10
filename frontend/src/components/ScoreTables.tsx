@@ -76,7 +76,7 @@ function SubjectTable({ subject, data, admin, onMoveUp, onMoveDown, run }: Table
           <TextCell
             className="title-input"
             value={subject.name}
-            onSave={(name) => run(() => api.updateSubject(subject.id, name, subject.note))}
+            onSave={(name) => run(() => api.updateSubject(subject.id, name, subject.note, subject.reference))}
           />
         ) : (
           <h2>{subject.name}</h2>
@@ -100,16 +100,40 @@ function SubjectTable({ subject, data, admin, onMoveUp, onMoveDown, run }: Table
         )}
       </div>
 
-      {admin ? (
-        <TextCell
-          className="note-input"
-          value={subject.note}
-          placeholder="note"
-          onSave={(note) => run(() => api.updateSubject(subject.id, subject.name, note))}
-        />
-      ) : (
-        subject.note && <p className="muted">{subject.note}</p>
-      )}
+      <div className="row subtitle-row">
+        {admin ? (
+          <>
+            <TextCell
+              className="note-input"
+              value={subject.note}
+              placeholder="note"
+              onSave={(note) => run(() => api.updateSubject(subject.id, subject.name, note, subject.reference))}
+            />
+            <button
+              className="chip"
+              aria-pressed={subject.reference}
+              title="Not one of my own benchmarks"
+              onClick={() =>
+                run(() =>
+                  api.updateSubject(subject.id, subject.name, subject.note, !subject.reference),
+                )
+              }
+            >
+              <span className={subject.reference ? "swatch ref" : "swatch"} />
+              reference
+            </button>
+          </>
+        ) : (
+          <>
+            {subject.note && <span className="muted">{subject.note}</span>}
+            {subject.reference && (
+              <span className="badge">
+                <span className="swatch ref" /> reference
+              </span>
+            )}
+          </>
+        )}
+      </div>
 
       {data.tasks.length === 0 ? (
         <div className="empty">no tasks</div>

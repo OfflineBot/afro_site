@@ -85,7 +85,7 @@ func (s *server) createSubject(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	v, err := s.st.CreateSubject(c.Context(), body.Name, body.Note)
+	v, err := s.st.CreateSubject(c.Context(), body.Name, body.Note, body.Reference)
 	if err != nil {
 		return err
 	}
@@ -101,7 +101,7 @@ func (s *server) updateSubject(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	v, err := s.st.UpdateSubject(c.Context(), id, body.Name, body.Note)
+	v, err := s.st.UpdateSubject(c.Context(), id, body.Name, body.Note, body.Reference)
 	return respond(c, v, err)
 }
 
@@ -202,8 +202,9 @@ func (s *server) deleteScore(c *fiber.Ctx) error {
 }
 
 type subjectBody struct {
-	Name string `json:"name"`
-	Note string `json:"note"`
+	Name      string `json:"name"`
+	Note      string `json:"note"`
+	Reference bool   `json:"reference"`
 }
 
 func (s *server) reorderSubjects(c *fiber.Ctx) error {

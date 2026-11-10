@@ -91,6 +91,7 @@ export default function App() {
                 onShowAll={subjectFilter.showAll}
                 onHideAll={() => subjectFilter.hideAll(data.subjects.map((s) => s.id))}
                 colorOf={subjectColor}
+                isReference={(id) => data.subjects.find((s) => s.id === id)?.reference ?? false}
               />
               <Filters
                 title="Tasks"
@@ -108,6 +109,7 @@ export default function App() {
               cell={data.cell}
               subjectColor={subjectColor}
               taskColor={taskColor}
+              isReference={(id) => data.subjects.find((s) => s.id === id)?.reference ?? false}
             />
           </>
         )}
