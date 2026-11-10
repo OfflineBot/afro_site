@@ -36,6 +36,13 @@ type Task struct {
 	Name     string `json:"name"`
 	Position int    `json:"position"`
 	Archived bool   `json:"archived"`
+	SetID    int    `json:"set_id"`
+}
+
+type TaskSet struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Position int    `json:"position"`
 }
 
 // A Score row exists as soon as a task is marked computed; Value stays nil until
@@ -77,11 +84,17 @@ func (s *Store) Migrate(ctx context.Context) error {
 			size      double precision CHECK (size > 0),
 			archived  boolean NOT NULL DEFAULT false
 		);
-		CREATE TABLE IF NOT EXISTS tasks (
+		CREATE TABLE IF NOT EXISTS task_sets (
 			id       serial PRIMARY KEY,
 			name     text NOT NULL UNIQUE,
+			position integer NOT NULL DEFAULT 0
+		);
+		CREATE TABLE IF NOT EXISTS tasks (
+			id       serial PRIMARY KEY,
+			name     text NOT NULL,
 			position integer NOT NULL DEFAULT 0,
-			archived boolean NOT NULL DEFAULT false
+			archived boolean NOT NULL DEFAULT false,
+			set_id   integer REFERENCES task_sets(id) ON DELETE CASCADE
 		);
 		CREATE TABLE IF NOT EXISTS scores (
 			subject_id integer NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
@@ -96,6 +109,7 @@ func (s *Store) Migrate(ctx context.Context) error {
 		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS size double precision CHECK (size > 0);
 		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
 		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
+		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS set_id integer REFERENCES task_sets(id) ON DELETE CASCADE;
 		ALTER TABLE scores ALTER COLUMN value DROP NOT NULL;
 		ALTER TABLE scores ADD COLUMN IF NOT EXISTS computed boolean NOT NULL DEFAULT false;
 
@@ -103,6 +117,18 @@ func (s *Store) Migrate(ctx context.Context) error {
 		UPDATE subjects SET position = id WHERE position = 0;
 		UPDATE tasks SET position = id WHERE position = 0;
 		UPDATE scores SET computed = true WHERE value IS NOT NULL AND NOT computed;
+
+		-- Every task belongs to a set. Tasks from before sets existed join the first one,
+		-- which keeps their ids and therefore every score already attached to them.
+		INSERT INTO task_sets (name, position)
+			SELECT 'Set 1', 1 WHERE NOT EXISTS (SELECT 1 FROM task_sets);
+		UPDATE tasks SET set_id = (SELECT id FROM task_sets ORDER BY position, id LIMIT 1)
+			WHERE set_id IS NULL;
+
+		-- Names only have to be unique inside a set, so two sets can both have "Math".
+		ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_name_key;
+		CREATE UNIQUE INDEX IF NOT EXISTS tasks_set_name_key ON tasks (set_id, name);
+		ALTER TABLE tasks ALTER COLUMN set_id SET NOT NULL;
 	`)
 	return err
 }
@@ -152,31 +178,59 @@ func (s *Store) ArchiveSubject(ctx context.Context, id int, archived bool) (Subj
 
 func (s *Store) Tasks(ctx context.Context, withArchived bool) ([]Task, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, name, position, archived FROM tasks
+		`SELECT id, name, position, archived, set_id FROM tasks
 		 WHERE $1 OR NOT archived ORDER BY position, id`, withArchived)
 	if err != nil {
 		return nil, err
 	}
 	return collect(rows, func(r pgx.Rows) (Task, error) {
 		var v Task
-		return v, r.Scan(&v.ID, &v.Name, &v.Position, &v.Archived)
+		return v, r.Scan(&v.ID, &v.Name, &v.Position, &v.Archived, &v.SetID)
 	})
 }
 
-func (s *Store) CreateTask(ctx context.Context, name string) (Task, error) {
-	v := Task{Name: name}
+func (s *Store) TaskSets(ctx context.Context) ([]TaskSet, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, name, position FROM task_sets ORDER BY position, id`)
+	if err != nil {
+		return nil, err
+	}
+	return collect(rows, func(r pgx.Rows) (TaskSet, error) {
+		var v TaskSet
+		return v, r.Scan(&v.ID, &v.Name, &v.Position)
+	})
+}
+
+func (s *Store) CreateTaskSet(ctx context.Context, name string) (TaskSet, error) {
+	v := TaskSet{Name: name}
 	err := s.pool.QueryRow(ctx,
-		`INSERT INTO tasks (name, position)
-		 VALUES ($1, (SELECT COALESCE(MAX(position), 0) + 1 FROM tasks))
+		`INSERT INTO task_sets (name, position)
+		 VALUES ($1, (SELECT COALESCE(MAX(position), 0) + 1 FROM task_sets))
 		 RETURNING id, position`, name).Scan(&v.ID, &v.Position)
+	return v, wrap(err)
+}
+
+func (s *Store) UpdateTaskSet(ctx context.Context, id int, name string) (TaskSet, error) {
+	v := TaskSet{ID: id}
+	err := s.pool.QueryRow(ctx,
+		`UPDATE task_sets SET name = $2 WHERE id = $1 RETURNING name, position`,
+		id, name).Scan(&v.Name, &v.Position)
+	return v, wrap(err)
+}
+
+func (s *Store) CreateTask(ctx context.Context, setID int, name string) (Task, error) {
+	v := Task{Name: name, SetID: setID}
+	err := s.pool.QueryRow(ctx,
+		`INSERT INTO tasks (name, position, set_id)
+		 VALUES ($1, (SELECT COALESCE(MAX(position), 0) + 1 FROM tasks WHERE set_id = $2), $2)
+		 RETURNING id, position`, name, setID).Scan(&v.ID, &v.Position)
 	return v, wrap(err)
 }
 
 func (s *Store) UpdateTask(ctx context.Context, id int, name string) (Task, error) {
 	v := Task{ID: id}
 	err := s.pool.QueryRow(ctx,
-		`UPDATE tasks SET name = $2 WHERE id = $1 RETURNING name, position`,
-		id, name).Scan(&v.Name, &v.Position)
+		`UPDATE tasks SET name = $2 WHERE id = $1 RETURNING name, position, set_id`,
+		id, name).Scan(&v.Name, &v.Position, &v.SetID)
 	return v, wrap(err)
 }
 
@@ -211,9 +265,10 @@ func (s *Store) ArchiveTask(ctx context.Context, id int, archived bool) (Task, e
 	v := Task{ID: id}
 	err := s.pool.QueryRow(ctx,
 		`UPDATE tasks SET archived = $2, position = CASE WHEN $2 THEN position
-		   ELSE (SELECT COALESCE(MAX(position), 0) + 1 FROM tasks WHERE NOT archived) END
-		 WHERE id = $1 RETURNING name, position, archived`,
-		id, archived).Scan(&v.Name, &v.Position, &v.Archived)
+		   ELSE (SELECT COALESCE(MAX(position), 0) + 1 FROM tasks t
+		         WHERE NOT t.archived AND t.set_id = tasks.set_id) END
+		 WHERE id = $1 RETURNING name, position, archived, set_id`,
+		id, archived).Scan(&v.Name, &v.Position, &v.Archived, &v.SetID)
 	return v, wrap(err)
 }
 

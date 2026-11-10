@@ -7,7 +7,14 @@ export type Subject = {
   size: number | null;
   archived: boolean;
 };
-export type Task = { id: number; name: string; position: number; archived: boolean };
+export type Task = {
+  id: number;
+  name: string;
+  position: number;
+  archived: boolean;
+  set_id: number;
+};
+export type TaskSet = { id: number; name: string; position: number };
 export type Score = {
   subject_id: number;
   task_id: number;
@@ -53,8 +60,14 @@ export const api = {
     request<Subject>("PUT", `/subjects/${id}/archived`, { archived }),
   reorderSubjects: (ids: number[]) => request<Subject[]>("PUT", "/subjects/order", { ids }),
 
+  taskSets: () => request<TaskSet[]>("GET", "/tasksets"),
+  createTaskSet: (name: string) => request<TaskSet>("POST", "/tasksets", { name }),
+  renameTaskSet: (id: number, name: string) =>
+    request<TaskSet>("PATCH", `/tasksets/${id}`, { name }),
+
   tasks: () => request<Task[]>("GET", "/tasks"),
-  createTask: (name: string) => request<Task>("POST", "/tasks", { name }),
+  createTask: (setId: number, name: string) =>
+    request<Task>("POST", "/tasks", { name, set_id: setId }),
   updateTask: (id: number, name: string) => request<Task>("PATCH", `/tasks/${id}`, { name }),
   archiveTask: (id: number, archived: boolean) =>
     request<Task>("PUT", `/tasks/${id}/archived`, { archived }),

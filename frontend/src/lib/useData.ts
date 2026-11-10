@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Score, type Subject, type Task } from "./api";
+import { api, type Score, type Subject, type Task, type TaskSet } from "./api";
 
 export type Data = {
   subjects: Subject[];
   tasks: Task[];
+  taskSets: TaskSet[];
   // Only an admin ever receives these; the API leaves them out for everyone else.
   archivedSubjects: Subject[];
   archivedTasks: Task[];
@@ -17,15 +18,22 @@ export function useData(): Data {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
+  const [taskSets, setTaskSets] = useState<TaskSet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
-      const [s, t, v] = await Promise.all([api.subjects(), api.tasks(), api.scores()]);
+      const [s, t, v, sets] = await Promise.all([
+        api.subjects(),
+        api.tasks(),
+        api.scores(),
+        api.taskSets(),
+      ]);
       setSubjects(s);
       setTasks(t);
       setScores(v);
+      setTaskSets(sets);
       setError(null);
     } catch (e) {
       setError((e as Error).message);
@@ -45,6 +53,7 @@ export function useData(): Data {
     tasks: tasks.filter((t) => !t.archived),
     archivedSubjects: subjects.filter((s) => s.archived),
     archivedTasks: tasks.filter((t) => t.archived),
+    taskSets,
     cell: (subjectId, taskId) => byCell.get(`${subjectId}:${taskId}`),
     reload,
     loading,

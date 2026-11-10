@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import Filters from "./components/Filters";
+import FilterRow from "./components/Filters";
 import Login from "./components/Login";
 import ScoreChart from "./components/ScoreChart";
 import ScoreTables from "./components/ScoreTables";
+import SetPicker from "./components/SetPicker";
 import SortControl from "./components/SortControl";
 import TaskPanel from "./components/TaskPanel";
 import { api } from "./lib/api";
@@ -28,6 +29,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>(tabFromHash);
   const [admin, setAdmin] = useState(false);
   const [sort, setSort] = useState<SubjectSort>("manual");
+  const [setId, setSetId] = useState<number | null>(null);
   const data = useData();
   const subjectFilter = useSelection();
   const taskFilter = useSelection();
@@ -45,14 +47,19 @@ export default function App() {
       .catch(() => setAdmin(false));
   }, []);
 
-  // Colour follows the subject, not its rank, so sorting never repaints a series.
+  // An unset or stale id falls back to the first set, so the picker always has a value.
+  const activeSet = data.taskSets.find((s) => s.id === setId) ?? data.taskSets[0];
+  const tasks = data.tasks.filter((t) => t.set_id === activeSet?.id);
+
+  // Colour follows the entity, not its rank, so sorting never repaints a series.
   const subjectColor = (id: number) => seriesColor(data.subjects.findIndex((s) => s.id === id));
-  const taskColor = (id: number) => seriesColor(data.tasks.findIndex((t) => t.id === id));
+  const taskColor = (id: number) => seriesColor(tasks.findIndex((t) => t.id === id));
   const subjectOf = (id: number) => data.subjects.find((s) => s.id === id);
 
   const orderedSubjects = sortSubjects(data.subjects, sort);
   const shownSubjects = orderedSubjects.filter((s) => subjectFilter.isShown(s.id));
-  const shownTasks = data.tasks.filter((t) => taskFilter.isShown(t.id));
+  const shownTasks = tasks.filter((t) => taskFilter.isShown(t.id));
+  const anyReference = data.subjects.some((s) => s.reference);
 
   return (
     <div className="app">
@@ -73,6 +80,7 @@ export default function App() {
             </button>
           ))}
         </nav>
+        <SetPicker sets={data.taskSets} value={activeSet?.id} onChange={setSetId} />
         <span className="spacer" />
         <Login admin={admin} onChange={setAdmin} />
       </header>
@@ -88,9 +96,16 @@ export default function App() {
 
         {!data.loading && tab === "chart" && (
           <>
-            <SortControl value={sort} onChange={setSort} />
-            <div className="grid-2">
-              <Filters
+            <div className="card filters">
+              <div className="card-head">
+                <h2>Filters</h2>
+                {anyReference && (
+                  <span className="muted filter-key">
+                    <span className="swatch ref" /> reference
+                  </span>
+                )}
+              </div>
+              <FilterRow
                 title="Subjects"
                 items={orderedSubjects}
                 isShown={subjectFilter.isShown}
@@ -100,14 +115,16 @@ export default function App() {
                 colorOf={subjectColor}
                 isReference={(id) => subjectOf(id)?.reference ?? false}
                 metaOf={(id) => formatSize(subjectOf(id)?.size)}
+                extra={<SortControl value={sort} onChange={setSort} />}
               />
-              <Filters
+              <FilterRow
                 title="Tasks"
-                items={data.tasks}
+                note={activeSet?.name}
+                items={tasks}
                 isShown={taskFilter.isShown}
                 onToggle={taskFilter.toggle}
                 onShowAll={taskFilter.showAll}
-                onHideAll={() => taskFilter.hideAll(data.tasks.map((t) => t.id))}
+                onHideAll={() => taskFilter.hideAll(tasks.map((t) => t.id))}
                 colorOf={taskColor}
               />
             </div>
@@ -124,17 +141,26 @@ export default function App() {
 
         {!data.loading && tab === "scores" && (
           <>
-            <SortControl value={sort} onChange={setSort} />
+            <SortControl value={sort} onChange={setSort} standalone />
             <ScoreTables
               data={data}
               subjects={orderedSubjects}
+              tasks={tasks}
               admin={admin}
               manual={sort === "manual"}
             />
           </>
         )}
 
-        {!data.loading && tab === "tasks" && <TaskPanel data={data} admin={admin} />}
+        {!data.loading && tab === "tasks" && (
+          <TaskPanel
+            data={data}
+            tasks={tasks}
+            taskSet={activeSet}
+            admin={admin}
+            onSelectSet={setSetId}
+          />
+        )}
       </main>
     </div>
   );

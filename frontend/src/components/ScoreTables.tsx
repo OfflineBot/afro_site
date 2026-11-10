@@ -1,4 +1,4 @@
-import { api, type Subject } from "../lib/api";
+import { api, type Subject, type Task } from "../lib/api";
 import { format } from "../lib/format";
 import { formatSize } from "../lib/size";
 import { moved, useAction } from "../lib/useAction";
@@ -9,12 +9,14 @@ import { AddForm, ScoreCell, SizeCell, TextCell } from "./fields";
 type Props = {
   data: Data;
   subjects: Subject[];
+  // The tasks of the selected set; every table shows exactly these rows.
+  tasks: Task[];
   admin: boolean;
   // The move buttons write positions, so they only make sense while that order is the one shown.
   manual: boolean;
 };
 
-export default function ScoreTables({ data, subjects, admin, manual }: Props) {
+export default function ScoreTables({ data, subjects, tasks, admin, manual }: Props) {
   const { run, error } = useAction(data.reload);
 
   const move = (index: number, to: number) =>
@@ -29,8 +31,8 @@ export default function ScoreTables({ data, subjects, admin, manual }: Props) {
             <span className="muted">one table per subject</span>
           </div>
           <AddForm placeholder="Name" onAdd={(name) => run(() => api.createSubject(name))} />
-          {data.tasks.length === 0 && (
-            <p className="muted">add tasks under Tasks first — every table uses the same ones</p>
+          {tasks.length === 0 && (
+            <p className="muted">add tasks to this set under Tasks first</p>
           )}
         </div>
       )}
@@ -48,6 +50,7 @@ export default function ScoreTables({ data, subjects, admin, manual }: Props) {
               key={subject.id}
               subject={subject}
               data={data}
+              tasks={tasks}
               admin={admin}
               onMoveUp={!manual || index === 0 ? undefined : () => move(index, index - 1)}
               onMoveDown={
@@ -76,18 +79,19 @@ export default function ScoreTables({ data, subjects, admin, manual }: Props) {
 type TableProps = {
   subject: Subject;
   data: Data;
+  tasks: Task[];
   admin: boolean;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   run: (action: () => Promise<unknown>) => void;
 };
 
-function SubjectTable({ subject, data, admin, onMoveUp, onMoveDown, run }: TableProps) {
+function SubjectTable({ subject, data, tasks, admin, onMoveUp, onMoveDown, run }: TableProps) {
   const save = (taskId: number, value: number | null, computed: boolean) =>
     run(() => api.setScore({ subject_id: subject.id, task_id: taskId, value, computed }));
 
-  const scored = data.tasks.filter((t) => data.cell(subject.id, t.id)?.value != null).length;
-  const pending = data.tasks.filter((t) => {
+  const scored = tasks.filter((t) => data.cell(subject.id, t.id)?.value != null).length;
+  const pending = tasks.filter((t) => {
     const cell = data.cell(subject.id, t.id);
     return cell?.computed && cell.value == null;
   }).length;
@@ -187,8 +191,8 @@ function SubjectTable({ subject, data, admin, onMoveUp, onMoveDown, run }: Table
         )}
       </div>
 
-      {data.tasks.length === 0 ? (
-        <div className="empty">no tasks</div>
+      {tasks.length === 0 ? (
+        <div className="empty">no tasks in this set</div>
       ) : (
         <table className="score-table">
           <thead>
@@ -199,7 +203,7 @@ function SubjectTable({ subject, data, admin, onMoveUp, onMoveDown, run }: Table
             </tr>
           </thead>
           <tbody>
-            {data.tasks.map((task) => {
+            {tasks.map((task) => {
               const cell = data.cell(subject.id, task.id);
               const hasValue = cell?.value != null;
               return (
@@ -243,9 +247,9 @@ function SubjectTable({ subject, data, admin, onMoveUp, onMoveDown, run }: Table
         </table>
       )}
 
-      {data.tasks.length > 0 && (
+      {tasks.length > 0 && (
         <p className="muted table-foot">
-          {scored} / {data.tasks.length} scored
+          {scored} / {tasks.length} scored
           {pending > 0 && ` · ${pending} awaiting a number`}
         </p>
       )}

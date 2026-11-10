@@ -1,7 +1,10 @@
+import type { ReactNode } from "react";
+
 type Item = { id: number; name: string };
 
 type Props = {
   title: string;
+  note?: string;
   items: Item[];
   isShown: (id: number) => boolean;
   onToggle: (id: number) => void;
@@ -10,10 +13,13 @@ type Props = {
   colorOf?: (id: number) => string | undefined;
   isReference?: (id: number) => boolean;
   metaOf?: (id: number) => string;
+  // Controls that belong to this dimension, shown next to its All/None buttons.
+  extra?: ReactNode;
 };
 
-export default function Filters({
+export default function FilterRow({
   title,
+  note,
   items,
   isShown,
   onToggle,
@@ -22,19 +28,20 @@ export default function Filters({
   colorOf,
   isReference,
   metaOf,
+  extra,
 }: Props) {
-  const anyReference = items.some((item) => isReference?.(item.id));
+  const shownCount = items.filter((item) => isShown(item.id)).length;
 
   return (
-    <div className="card">
-      <div className="card-head">
-        <h2>{title}</h2>
-        {anyReference && (
-          <span className="muted filter-key">
-            <span className="swatch ref" /> reference
-          </span>
-        )}
-        <span className="spacer" style={{ flex: 1 }} />
+    <section className="filter-row">
+      <div className="filter-head">
+        <h3>{title}</h3>
+        {note && <span className="filter-note">{note}</span>}
+        <span className="muted filter-count">
+          {shownCount} / {items.length}
+        </span>
+        <span style={{ flex: 1 }} />
+        {extra}
         <button className="btn" onClick={onShowAll}>
           All
         </button>
@@ -71,6 +78,6 @@ export default function Filters({
           })}
         </div>
       )}
-    </div>
+    </section>
   );
 }

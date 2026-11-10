@@ -617,3 +617,56 @@ input[type="checkbox"]:disabled {
   font-size: 12px;
   padding: 2px 7px;
 }
+
+/* one card, one row per dimension — the filters used to be two separate cards */
+.filters .filter-row + .filter-row {
+  margin-top: 16px;
+  border-top: 1px solid var(--surface0);
+  padding-top: 14px;
+}
+
+.filter-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.filter-head h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.filter-note {
+  font-size: 12px;
+  color: var(--mauve);
+  border: 1px solid color-mix(in oklab, var(--mauve) 35%, var(--surface0));
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+.filter-count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.set-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+}
+
+.set-picker select {
+  background: var(--crust);
+  color: var(--text);
+  border: 1px solid var(--surface0);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.set-picker select:hover {
+  border-color: var(--surface1);
+}

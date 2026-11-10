@@ -31,6 +31,7 @@ func New(st *store.Store, adminPassword string) *fiber.App {
 
 	api.Get("/subjects", s.listSubjects)
 	api.Get("/tasks", s.listTasks)
+	api.Get("/tasksets", s.listTaskSets)
 	api.Get("/scores", s.listScores)
 
 	admin := api.Group("", s.requireAdmin)
@@ -38,6 +39,8 @@ func New(st *store.Store, adminPassword string) *fiber.App {
 	admin.Patch("/subjects/:id", s.updateSubject)
 	admin.Put("/subjects/order", s.reorderSubjects)
 	admin.Put("/subjects/:id/archived", s.archiveSubject)
+	admin.Post("/tasksets", s.createTaskSet)
+	admin.Patch("/tasksets/:id", s.updateTaskSet)
 	admin.Post("/tasks", s.createTask)
 	admin.Put("/tasks/order", s.reorderTasks)
 	admin.Patch("/tasks/:id", s.updateTask)
@@ -124,15 +127,55 @@ func (s *server) listTasks(c *fiber.Ctx) error {
 }
 
 func (s *server) createTask(c *fiber.Ctx) error {
-	name, err := parseTask(c)
-	if err != nil {
-		return err
+	var body struct {
+		Name  string `json:"name"`
+		SetID int    `json:"set_id"`
 	}
-	v, err := s.st.CreateTask(c.Context(), name)
+	if err := c.BodyParser(&body); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid body")
+	}
+	name := strings.TrimSpace(body.Name)
+	if name == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "name is required")
+	}
+	if body.SetID == 0 {
+		return fiber.NewError(fiber.StatusBadRequest, "set_id is required")
+	}
+	v, err := s.st.CreateTask(c.Context(), body.SetID, name)
 	if err != nil {
 		return err
 	}
 	return c.Status(fiber.StatusCreated).JSON(v)
+}
+
+func (s *server) listTaskSets(c *fiber.Ctx) error {
+	v, err := s.st.TaskSets(c.Context())
+	return respond(c, v, err)
+}
+
+func (s *server) createTaskSet(c *fiber.Ctx) error {
+	name, err := parseTask(c)
+	if err != nil {
+		return err
+	}
+	v, err := s.st.CreateTaskSet(c.Context(), name)
+	if err != nil {
+		return err
+	}
+	return c.Status(fiber.StatusCreated).JSON(v)
+}
+
+func (s *server) updateTaskSet(c *fiber.Ctx) error {
+	id, err := param(c, "id")
+	if err != nil {
+		return err
+	}
+	name, err := parseTask(c)
+	if err != nil {
+		return err
+	}
+	v, err := s.st.UpdateTaskSet(c.Context(), id, name)
+	return respond(c, v, err)
 }
 
 func (s *server) updateTask(c *fiber.Ctx) error {
