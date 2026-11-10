@@ -6,6 +6,8 @@ export type Subject = {
   reference: boolean;
   size: number | null;
   archived: boolean;
+  // null means the subject has not been put into a task set yet.
+  set_id: number | null;
 };
 export type Task = {
   id: number;
@@ -14,7 +16,7 @@ export type Task = {
   archived: boolean;
   set_id: number;
 };
-export type TaskSet = { id: number; name: string; position: number };
+export type TaskSet = { id: number; name: string; position: number; default: boolean };
 export type Score = {
   subject_id: number;
   task_id: number;
@@ -52,10 +54,18 @@ export const api = {
   login: (password: string) => request<{ token: string }>("POST", "/login", { password }),
 
   subjects: () => request<Subject[]>("GET", "/subjects"),
-  createSubject: (name: string, note = "", reference = false, size: number | null = null) =>
-    request<Subject>("POST", "/subjects", { name, note, reference, size }),
+  createSubject: (name: string, setId: number | null) =>
+    request<Subject>("POST", "/subjects", {
+      name,
+      note: "",
+      reference: false,
+      size: null,
+      set_id: setId,
+    }),
   updateSubject: (id: number, name: string, note: string, reference: boolean, size: number | null) =>
     request<Subject>("PATCH", `/subjects/${id}`, { name, note, reference, size }),
+  moveSubject: (id: number, setId: number | null) =>
+    request<Subject>("PUT", `/subjects/${id}/set`, { set_id: setId }),
   archiveSubject: (id: number, archived: boolean) =>
     request<Subject>("PUT", `/subjects/${id}/archived`, { archived }),
   reorderSubjects: (ids: number[]) => request<Subject[]>("PUT", "/subjects/order", { ids }),
@@ -64,6 +74,7 @@ export const api = {
   createTaskSet: (name: string) => request<TaskSet>("POST", "/tasksets", { name }),
   renameTaskSet: (id: number, name: string) =>
     request<TaskSet>("PATCH", `/tasksets/${id}`, { name }),
+  makeDefaultTaskSet: (id: number) => request<void>("PUT", `/tasksets/${id}/default`, {}),
 
   tasks: () => request<Task[]>("GET", "/tasks"),
   createTask: (setId: number, name: string) =>

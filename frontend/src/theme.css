@@ -670,3 +670,53 @@ input[type="checkbox"]:disabled {
 .set-picker select:hover {
   border-color: var(--surface1);
 }
+
+.tab-count {
+  margin-left: 6px;
+  font-size: 11px;
+  background: var(--surface1);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 1px 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.archive-kind {
+  width: 1px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.set-select {
+  flex: none;
+  background: var(--crust);
+  color: var(--subtext0);
+  border: 1px solid var(--surface0);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.set-select:hover {
+  border-color: var(--surface1);
+  color: var(--text);
+}
+
+/* a model without a task set: visible, but no numbers go in yet */
+.table-card.locked {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.table-card.locked .set-select {
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+
+.set-counts {
+  font-size: 12px;
+  white-space: nowrap;
+}

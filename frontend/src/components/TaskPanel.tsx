@@ -1,7 +1,6 @@
 import { api, type Task, type TaskSet } from "../lib/api";
 import { moved, useAction } from "../lib/useAction";
 import type { Data } from "../lib/useData";
-import ArchiveList from "./ArchiveList";
 import { AddForm, TextCell } from "./fields";
 
 type Props = {
@@ -23,8 +22,6 @@ export default function TaskPanel({ data, tasks, taskSet, admin, onSelectSet }: 
       const created = await api.createTaskSet(name);
       onSelectSet(created.id);
     });
-
-  const archived = data.archivedTasks.filter((t) => t.set_id === taskSet?.id);
 
   return (
     <>
@@ -101,38 +98,49 @@ export default function TaskPanel({ data, tasks, taskSet, admin, onSelectSet }: 
             </tbody>
           </table>
         )}
-
-        {admin && archived.length > 0 && (
-          <ArchiveList
-            flat
-            items={archived.map((task) => ({ id: task.id, name: task.name }))}
-            onRestore={(id) => run(() => api.archiveTask(id, false))}
-          />
-        )}
       </section>
 
       {admin && (
         <section className="card narrow">
           <div className="card-head">
             <h2>Task sets</h2>
-            <span className="muted">each set has its own tasks</span>
+            <span className="muted">own tasks, own models, own numbers</span>
           </div>
           <AddForm placeholder="New task set" onAdd={addSet} />
-          <div className="chips">
-            {data.taskSets.map((set) => (
-              <button
-                key={set.id}
-                className="chip"
-                aria-pressed={set.id === taskSet?.id}
-                onClick={() => onSelectSet(set.id)}
-              >
-                {set.name}
-                <span className="chip-meta">
-                  {data.tasks.filter((t) => t.set_id === set.id).length}
-                </span>
-              </button>
-            ))}
-          </div>
+          <table>
+            <tbody>
+              {data.taskSets.map((set) => (
+                <tr key={set.id}>
+                  <td>
+                    <button
+                      className="chip"
+                      aria-pressed={set.id === taskSet?.id}
+                      onClick={() => onSelectSet(set.id)}
+                    >
+                      {set.name}
+                    </button>
+                  </td>
+                  <td className="muted set-counts">
+                    {data.tasks.filter((t) => t.set_id === set.id).length} tasks ·{" "}
+                    {data.subjects.filter((s) => s.set_id === set.id).length} models
+                  </td>
+                  <td style={{ width: 1 }}>
+                    {set.default ? (
+                      <span className="badge on">default</span>
+                    ) : (
+                      <button
+                        className="btn"
+                        title="Open the board with this set"
+                        onClick={() => run(() => api.makeDefaultTaskSet(set.id))}
+                      >
+                        make default
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
       )}
     </>

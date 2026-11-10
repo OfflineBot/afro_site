@@ -39,8 +39,10 @@ func New(st *store.Store, adminPassword string) *fiber.App {
 	admin.Patch("/subjects/:id", s.updateSubject)
 	admin.Put("/subjects/order", s.reorderSubjects)
 	admin.Put("/subjects/:id/archived", s.archiveSubject)
+	admin.Put("/subjects/:id/set", s.moveSubject)
 	admin.Post("/tasksets", s.createTaskSet)
 	admin.Patch("/tasksets/:id", s.updateTaskSet)
+	admin.Put("/tasksets/:id/default", s.setDefaultTaskSet)
 	admin.Post("/tasks", s.createTask)
 	admin.Put("/tasks/order", s.reorderTasks)
 	admin.Patch("/tasks/:id", s.updateTask)
@@ -92,7 +94,7 @@ func (s *server) createSubject(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	v, err := s.st.CreateSubject(c.Context(), body.Name, body.Note, body.Reference, body.Size)
+	v, err := s.st.CreateSubject(c.Context(), body.Name, body.Note, body.Reference, body.Size, body.SetID)
 	if err != nil {
 		return err
 	}
@@ -110,6 +112,32 @@ func (s *server) updateSubject(c *fiber.Ctx) error {
 	}
 	v, err := s.st.UpdateSubject(c.Context(), id, body.Name, body.Note, body.Reference, body.Size)
 	return respond(c, v, err)
+}
+
+func (s *server) moveSubject(c *fiber.Ctx) error {
+	id, err := param(c, "id")
+	if err != nil {
+		return err
+	}
+	var body struct {
+		SetID *int `json:"set_id"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid body")
+	}
+	v, err := s.st.MoveSubject(c.Context(), id, body.SetID)
+	return respond(c, v, err)
+}
+
+func (s *server) setDefaultTaskSet(c *fiber.Ctx) error {
+	id, err := param(c, "id")
+	if err != nil {
+		return err
+	}
+	if err := s.st.SetDefaultTaskSet(c.Context(), id); err != nil {
+		return err
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 func (s *server) archiveSubject(c *fiber.Ctx) error {
@@ -249,6 +277,7 @@ type subjectBody struct {
 	Note      string   `json:"note"`
 	Reference bool     `json:"reference"`
 	Size      *float64 `json:"size"`
+	SetID     *int     `json:"set_id"`
 }
 
 func (s *server) reorderSubjects(c *fiber.Ctx) error {

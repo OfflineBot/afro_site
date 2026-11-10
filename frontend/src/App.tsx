@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ArchivePanel from "./components/ArchivePanel";
 import FilterRow from "./components/Filters";
 import Login from "./components/Login";
 import ScoreChart from "./components/ScoreChart";
@@ -12,12 +13,13 @@ import { formatSize, sortSubjects, type SubjectSort } from "./lib/size";
 import { useData } from "./lib/useData";
 import { useSelection } from "./lib/useSelection";
 
-type Tab = "chart" | "scores" | "tasks";
+type Tab = "chart" | "scores" | "tasks" | "archive";
 
-const TABS: { id: Tab; label: string }[] = [
+const TABS: { id: Tab; label: string; adminOnly?: boolean }[] = [
   { id: "chart", label: "Chart" },
   { id: "scores", label: "Scores" },
   { id: "tasks", label: "Tasks" },
+  { id: "archive", label: "Archive", adminOnly: true },
 ];
 
 const tabFromHash = (): Tab => {
@@ -47,36 +49,46 @@ export default function App() {
       .catch(() => setAdmin(false));
   }, []);
 
-  // An unset or stale id falls back to the first set, so the picker always has a value.
-  const activeSet = data.taskSets.find((s) => s.id === setId) ?? data.taskSets[0];
+  // An unset or stale id falls back to the default set, so the picker always has a value.
+  const defaultSet = data.taskSets.find((s) => s.default) ?? data.taskSets[0];
+  const activeSet = data.taskSets.find((s) => s.id === setId) ?? defaultSet;
   const tasks = data.tasks.filter((t) => t.set_id === activeSet?.id);
+  // A set is a whole generation of the benchmark: its own tasks and its own subjects.
+  const setSubjects = data.subjects.filter((s) => s.set_id === activeSet?.id);
+  const unassigned = data.subjects.filter((s) => s.set_id === null);
 
   // Colour follows the entity, not its rank, so sorting never repaints a series.
-  const subjectColor = (id: number) => seriesColor(data.subjects.findIndex((s) => s.id === id));
+  const subjectColor = (id: number) => seriesColor(setSubjects.findIndex((s) => s.id === id));
   const taskColor = (id: number) => seriesColor(tasks.findIndex((t) => t.id === id));
   const subjectOf = (id: number) => data.subjects.find((s) => s.id === id);
+  const anyReference = setSubjects.some((s) => s.reference);
 
-  const orderedSubjects = sortSubjects(data.subjects, sort);
+  const orderedSubjects = sortSubjects(setSubjects, sort);
   const shownSubjects = orderedSubjects.filter((s) => subjectFilter.isShown(s.id));
   const shownTasks = tasks.filter((t) => taskFilter.isShown(t.id));
-  const anyReference = data.subjects.some((s) => s.reference);
+  const archivedCount = data.archivedSubjects.length + data.archivedTasks.length;
+  // A visitor landing on #archive has no such tab, so fall back to the board.
+  const activeTab: Tab = tab === "archive" && !admin ? "chart" : tab;
 
   return (
     <div className="app">
       <header className="topbar">
         <h1>Afro Sites</h1>
         <nav className="tabs" role="tablist">
-          {TABS.map(({ id, label }) => (
+          {TABS.filter((t) => admin || !t.adminOnly).map(({ id, label }) => (
             <button
               key={id}
               role="tab"
-              aria-selected={tab === id}
+              aria-selected={activeTab === id}
               onClick={() => {
                 location.hash = id;
                 setTab(id);
               }}
             >
               {label}
+              {id === "archive" && archivedCount > 0 && (
+                <span className="tab-count">{archivedCount}</span>
+              )}
             </button>
           ))}
         </nav>
@@ -94,7 +106,7 @@ export default function App() {
           </div>
         )}
 
-        {!data.loading && tab === "chart" && (
+        {!data.loading && activeTab === "chart" && (
           <>
             <div className="card filters">
               <div className="card-head">
@@ -111,7 +123,7 @@ export default function App() {
                 isShown={subjectFilter.isShown}
                 onToggle={subjectFilter.toggle}
                 onShowAll={subjectFilter.showAll}
-                onHideAll={() => subjectFilter.hideAll(data.subjects.map((s) => s.id))}
+                onHideAll={() => subjectFilter.hideAll(setSubjects.map((s) => s.id))}
                 colorOf={subjectColor}
                 isReference={(id) => subjectOf(id)?.reference ?? false}
                 metaOf={(id) => formatSize(subjectOf(id)?.size)}
@@ -139,20 +151,24 @@ export default function App() {
           </>
         )}
 
-        {!data.loading && tab === "scores" && (
+        {!data.loading && activeTab === "scores" && (
           <>
             <SortControl value={sort} onChange={setSort} standalone />
             <ScoreTables
               data={data}
               subjects={orderedSubjects}
+              unassigned={unassigned}
               tasks={tasks}
+              activeSet={activeSet}
               admin={admin}
               manual={sort === "manual"}
             />
           </>
         )}
 
-        {!data.loading && tab === "tasks" && (
+        {!data.loading && activeTab === "archive" && <ArchivePanel data={data} />}
+
+        {!data.loading && activeTab === "tasks" && (
           <TaskPanel
             data={data}
             tasks={tasks}

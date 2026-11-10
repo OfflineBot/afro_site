@@ -29,6 +29,8 @@ type Subject struct {
 	// Size is a parameter count in billions, nil when unknown.
 	Size     *float64 `json:"size"`
 	Archived bool     `json:"archived"`
+	// SetID is nil for a subject that has not been put into a task set yet.
+	SetID *int `json:"set_id"`
 }
 
 type Task struct {
@@ -43,6 +45,7 @@ type TaskSet struct {
 	ID       int    `json:"id"`
 	Name     string `json:"name"`
 	Position int    `json:"position"`
+	Default  bool   `json:"default"`
 }
 
 // A Score row exists as soon as a task is marked computed; Value stays nil until
@@ -77,7 +80,7 @@ func (s *Store) Migrate(ctx context.Context) error {
 	_, err := s.pool.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS subjects (
 			id       serial PRIMARY KEY,
-			name      text NOT NULL UNIQUE,
+			name      text NOT NULL,
 			note      text NOT NULL DEFAULT '',
 			position  integer NOT NULL DEFAULT 0,
 			reference boolean NOT NULL DEFAULT false,
@@ -85,9 +88,10 @@ func (s *Store) Migrate(ctx context.Context) error {
 			archived  boolean NOT NULL DEFAULT false
 		);
 		CREATE TABLE IF NOT EXISTS task_sets (
-			id       serial PRIMARY KEY,
-			name     text NOT NULL UNIQUE,
-			position integer NOT NULL DEFAULT 0
+			id         serial PRIMARY KEY,
+			name       text NOT NULL UNIQUE,
+			position   integer NOT NULL DEFAULT 0,
+			is_default boolean NOT NULL DEFAULT false
 		);
 		CREATE TABLE IF NOT EXISTS tasks (
 			id       serial PRIMARY KEY,
@@ -108,6 +112,8 @@ func (s *Store) Migrate(ctx context.Context) error {
 		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS reference boolean NOT NULL DEFAULT false;
 		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS size double precision CHECK (size > 0);
 		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
+		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS set_id integer REFERENCES task_sets(id);
+		ALTER TABLE task_sets ADD COLUMN IF NOT EXISTS is_default boolean NOT NULL DEFAULT false;
 		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
 		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS set_id integer REFERENCES task_sets(id) ON DELETE CASCADE;
 		ALTER TABLE scores ALTER COLUMN value DROP NOT NULL;
@@ -129,6 +135,21 @@ func (s *Store) Migrate(ctx context.Context) error {
 		ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_name_key;
 		CREATE UNIQUE INDEX IF NOT EXISTS tasks_set_name_key ON tasks (set_id, name);
 		ALTER TABLE tasks ALTER COLUMN set_id SET NOT NULL;
+
+		-- Exactly one set is the one the board opens with.
+		UPDATE task_sets SET is_default = true
+			WHERE id = (SELECT id FROM task_sets ORDER BY position, id LIMIT 1)
+			  AND NOT EXISTS (SELECT 1 FROM task_sets WHERE is_default);
+
+		-- Subjects from before sets existed are the first generation, so they join that set
+		-- rather than landing unassigned, which would empty the public board.
+		UPDATE subjects SET set_id = (SELECT id FROM task_sets WHERE is_default LIMIT 1)
+			WHERE set_id IS NULL;
+
+		-- A model may be measured again in a later generation, so its name only has to be
+		-- unique inside its own set.
+		ALTER TABLE subjects DROP CONSTRAINT IF EXISTS subjects_name_key;
+		CREATE UNIQUE INDEX IF NOT EXISTS subjects_set_name_key ON subjects (set_id, name);
 	`)
 	return err
 }
@@ -136,32 +157,67 @@ func (s *Store) Migrate(ctx context.Context) error {
 // Subjects leaves the archive out unless withArchived is set; only an admin sees it.
 func (s *Store) Subjects(ctx context.Context, withArchived bool) ([]Subject, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, name, note, position, reference, size, archived FROM subjects
+		`SELECT id, name, note, position, reference, size, archived, set_id FROM subjects
 		 WHERE $1 OR NOT archived ORDER BY position, id`, withArchived)
 	if err != nil {
 		return nil, err
 	}
 	return collect(rows, func(r pgx.Rows) (Subject, error) {
 		var v Subject
-		return v, r.Scan(&v.ID, &v.Name, &v.Note, &v.Position, &v.Reference, &v.Size, &v.Archived)
+		return v, r.Scan(&v.ID, &v.Name, &v.Note, &v.Position, &v.Reference, &v.Size,
+			&v.Archived, &v.SetID)
 	})
 }
 
-func (s *Store) CreateSubject(ctx context.Context, name, note string, reference bool, size *float64) (Subject, error) {
-	v := Subject{Name: name, Note: note, Reference: reference, Size: size}
+func (s *Store) CreateSubject(ctx context.Context, name, note string, reference bool, size *float64, setID *int) (Subject, error) {
+	v := Subject{Name: name, Note: note, Reference: reference, Size: size, SetID: setID}
 	err := s.pool.QueryRow(ctx,
-		`INSERT INTO subjects (name, note, position, reference, size)
-		 VALUES ($1, $2, (SELECT COALESCE(MAX(position), 0) + 1 FROM subjects), $3, $4)
-		 RETURNING id, position`, name, note, reference, size).Scan(&v.ID, &v.Position)
+		`INSERT INTO subjects (name, note, position, reference, size, set_id)
+		 VALUES ($1, $2, (SELECT COALESCE(MAX(position), 0) + 1 FROM subjects), $3, $4, $5)
+		 RETURNING id, position`, name, note, reference, size, setID).Scan(&v.ID, &v.Position)
 	return v, wrap(err)
+}
+
+// MoveSubject puts a subject into a task set, or out of every set when setID is nil.
+func (s *Store) MoveSubject(ctx context.Context, id int, setID *int) (Subject, error) {
+	v := Subject{ID: id}
+	err := s.pool.QueryRow(ctx,
+		`UPDATE subjects SET set_id = $2, position =
+		   (SELECT COALESCE(MAX(position), 0) + 1 FROM subjects WHERE set_id IS NOT DISTINCT FROM $2)
+		 WHERE id = $1
+		 RETURNING name, note, position, reference, size, archived, set_id`,
+		id, setID).Scan(&v.Name, &v.Note, &v.Position, &v.Reference, &v.Size, &v.Archived, &v.SetID)
+	return v, wrap(err)
+}
+
+func (s *Store) SetDefaultTaskSet(ctx context.Context, id int) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `UPDATE task_sets SET is_default = (id = $1)`, id); err != nil {
+		return wrap(err)
+	}
+	var exists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM task_sets WHERE id = $1)`, id).
+		Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return ErrNotFound
+	}
+	return tx.Commit(ctx)
 }
 
 func (s *Store) UpdateSubject(ctx context.Context, id int, name, note string, reference bool, size *float64) (Subject, error) {
 	v := Subject{ID: id}
 	err := s.pool.QueryRow(ctx,
 		`UPDATE subjects SET name = $2, note = $3, reference = $4, size = $5
-		 WHERE id = $1 RETURNING name, note, position, reference, size`,
-		id, name, note, reference, size).Scan(&v.Name, &v.Note, &v.Position, &v.Reference, &v.Size)
+		 WHERE id = $1 RETURNING name, note, position, reference, size, set_id`,
+		id, name, note, reference, size).Scan(&v.Name, &v.Note, &v.Position, &v.Reference,
+		&v.Size, &v.SetID)
 	return v, wrap(err)
 }
 
@@ -170,9 +226,11 @@ func (s *Store) ArchiveSubject(ctx context.Context, id int, archived bool) (Subj
 	v := Subject{ID: id}
 	err := s.pool.QueryRow(ctx,
 		`UPDATE subjects SET archived = $2, position = CASE WHEN $2 THEN position
-		   ELSE (SELECT COALESCE(MAX(position), 0) + 1 FROM subjects WHERE NOT archived) END
-		 WHERE id = $1 RETURNING name, note, position, reference, size, archived`,
-		id, archived).Scan(&v.Name, &v.Note, &v.Position, &v.Reference, &v.Size, &v.Archived)
+		   ELSE (SELECT COALESCE(MAX(position), 0) + 1 FROM subjects s
+		         WHERE NOT s.archived AND s.set_id IS NOT DISTINCT FROM subjects.set_id) END
+		 WHERE id = $1 RETURNING name, note, position, reference, size, archived, set_id`,
+		id, archived).Scan(&v.Name, &v.Note, &v.Position, &v.Reference, &v.Size, &v.Archived,
+		&v.SetID)
 	return v, wrap(err)
 }
 
@@ -190,13 +248,14 @@ func (s *Store) Tasks(ctx context.Context, withArchived bool) ([]Task, error) {
 }
 
 func (s *Store) TaskSets(ctx context.Context) ([]TaskSet, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, name, position FROM task_sets ORDER BY position, id`)
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, name, position, is_default FROM task_sets ORDER BY position, id`)
 	if err != nil {
 		return nil, err
 	}
 	return collect(rows, func(r pgx.Rows) (TaskSet, error) {
 		var v TaskSet
-		return v, r.Scan(&v.ID, &v.Name, &v.Position)
+		return v, r.Scan(&v.ID, &v.Name, &v.Position, &v.Default)
 	})
 }
 

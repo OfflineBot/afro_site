@@ -1,22 +1,31 @@
-import { api, type Subject, type Task } from "../lib/api";
+import { api, type Subject, type Task, type TaskSet } from "../lib/api";
 import { format } from "../lib/format";
 import { formatSize } from "../lib/size";
 import { moved, useAction } from "../lib/useAction";
 import type { Data } from "../lib/useData";
-import ArchiveList from "./ArchiveList";
 import { AddForm, ScoreCell, SizeCell, TextCell } from "./fields";
 
 type Props = {
   data: Data;
   subjects: Subject[];
-  // The tasks of the selected set; every table shows exactly these rows.
+  // Subjects without a task set: shown apart and locked until one is picked.
+  unassigned: Subject[];
   tasks: Task[];
+  activeSet: TaskSet | undefined;
   admin: boolean;
   // The move buttons write positions, so they only make sense while that order is the one shown.
   manual: boolean;
 };
 
-export default function ScoreTables({ data, subjects, tasks, admin, manual }: Props) {
+export default function ScoreTables({
+  data,
+  subjects,
+  unassigned,
+  tasks,
+  activeSet,
+  admin,
+  manual,
+}: Props) {
   const { run, error } = useAction(data.reload);
 
   const move = (index: number, to: number) =>
@@ -24,16 +33,17 @@ export default function ScoreTables({ data, subjects, tasks, admin, manual }: Pr
 
   return (
     <>
-      {admin && (
+      {admin && activeSet && (
         <div className="card">
           <div className="card-head">
             <h2>New table</h2>
-            <span className="muted">one table per subject</span>
+            <span className="muted">added to {activeSet.name}</span>
           </div>
-          <AddForm placeholder="Name" onAdd={(name) => run(() => api.createSubject(name))} />
-          {tasks.length === 0 && (
-            <p className="muted">add tasks to this set under Tasks first</p>
-          )}
+          <AddForm
+            placeholder="Name"
+            onAdd={(name) => run(() => api.createSubject(name, activeSet.id))}
+          />
+          {tasks.length === 0 && <p className="muted">add tasks to this set under Tasks first</p>}
         </div>
       )}
 
@@ -41,7 +51,7 @@ export default function ScoreTables({ data, subjects, tasks, admin, manual }: Pr
 
       {subjects.length === 0 ? (
         <div className="card">
-          <div className="empty">no tables yet</div>
+          <div className="empty">no tables in this set</div>
         </div>
       ) : (
         <div className="tables">
@@ -51,6 +61,7 @@ export default function ScoreTables({ data, subjects, tasks, admin, manual }: Pr
               subject={subject}
               data={data}
               tasks={tasks}
+              sets={data.taskSets}
               admin={admin}
               onMoveUp={!manual || index === 0 ? undefined : () => move(index, index - 1)}
               onMoveDown={
@@ -62,15 +73,28 @@ export default function ScoreTables({ data, subjects, tasks, admin, manual }: Pr
         </div>
       )}
 
-      {admin && data.archivedSubjects.length > 0 && (
-        <ArchiveList
-          items={data.archivedSubjects.map((subject) => ({
-            id: subject.id,
-            name: subject.name,
-            meta: formatSize(subject.size),
-          }))}
-          onRestore={(id) => run(() => api.archiveSubject(id, false))}
-        />
+      {admin && unassigned.length > 0 && (
+        <>
+          <div className="row sort-row">
+            <span className="muted">
+              unassigned — pick a task set to unlock scoring
+            </span>
+          </div>
+          <div className="tables">
+            {unassigned.map((subject) => (
+              <SubjectTable
+                key={subject.id}
+                subject={subject}
+                data={data}
+                tasks={tasks}
+                sets={data.taskSets}
+                admin={admin}
+                locked
+                run={run}
+              />
+            ))}
+          </div>
+        </>
       )}
     </>
   );
@@ -80,13 +104,27 @@ type TableProps = {
   subject: Subject;
   data: Data;
   tasks: Task[];
+  sets: TaskSet[];
   admin: boolean;
+  locked?: boolean;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   run: (action: () => Promise<unknown>) => void;
 };
 
-function SubjectTable({ subject, data, tasks, admin, onMoveUp, onMoveDown, run }: TableProps) {
+function SubjectTable({
+  subject,
+  data,
+  tasks,
+  sets,
+  admin,
+  locked,
+  onMoveUp,
+  onMoveDown,
+  run,
+}: TableProps) {
+  const editable = admin && !locked;
+
   const save = (taskId: number, value: number | null, computed: boolean) =>
     run(() => api.setScore({ subject_id: subject.id, task_id: taskId, value, computed }));
 
@@ -97,9 +135,9 @@ function SubjectTable({ subject, data, tasks, admin, onMoveUp, onMoveDown, run }
   }).length;
 
   return (
-    <section className="card table-card">
+    <section className={locked ? "card table-card locked" : "card table-card"}>
       <div className="card-head">
-        {admin ? (
+        {editable ? (
           <TextCell
             className="title-input"
             value={subject.name}
@@ -112,12 +150,17 @@ function SubjectTable({ subject, data, tasks, admin, onMoveUp, onMoveDown, run }
         ) : (
           <h2>{subject.name}</h2>
         )}
-        {admin && (
+        {editable && (
           <span className="card-actions">
             <button className="btn-ghost" title="Move up" disabled={!onMoveUp} onClick={onMoveUp}>
               ↑
             </button>
-            <button className="btn-ghost" title="Move down" disabled={!onMoveDown} onClick={onMoveDown}>
+            <button
+              className="btn-ghost"
+              title="Move down"
+              disabled={!onMoveDown}
+              onClick={onMoveDown}
+            >
               ↓
             </button>
             <button
@@ -134,49 +177,79 @@ function SubjectTable({ subject, data, tasks, admin, onMoveUp, onMoveDown, run }
       <div className="row subtitle-row">
         {admin ? (
           <>
-            <TextCell
-              className="note-input"
-              value={subject.note}
-              placeholder="note"
-              onSave={(note) =>
+            {!locked && (
+              <TextCell
+                className="note-input"
+                value={subject.note}
+                placeholder="note"
+                onSave={(note) =>
+                  run(() =>
+                    api.updateSubject(
+                      subject.id,
+                      subject.name,
+                      note,
+                      subject.reference,
+                      subject.size,
+                    ),
+                  )
+                }
+              />
+            )}
+            {locked && <span className="spacer" style={{ flex: 1 }} />}
+            <select
+              className="set-select"
+              title="Task set"
+              value={subject.set_id ?? ""}
+              onChange={(e) =>
                 run(() =>
-                  api.updateSubject(subject.id, subject.name, note, subject.reference, subject.size),
-                )
-              }
-            />
-            <SizeCell
-              value={subject.size}
-              onSave={(size) =>
-                run(() =>
-                  api.updateSubject(
-                    subject.id,
-                    subject.name,
-                    subject.note,
-                    subject.reference,
-                    size,
-                  ),
-                )
-              }
-            />
-            <button
-              className="chip"
-              aria-pressed={subject.reference}
-              title="Not one of my own benchmarks"
-              onClick={() =>
-                run(() =>
-                  api.updateSubject(
-                    subject.id,
-                    subject.name,
-                    subject.note,
-                    !subject.reference,
-                    subject.size,
-                  ),
+                  api.moveSubject(subject.id, e.target.value === "" ? null : Number(e.target.value)),
                 )
               }
             >
-              <span className={subject.reference ? "swatch ref" : "swatch"} />
-              reference
-            </button>
+              <option value="">unassigned</option>
+              {sets.map((set) => (
+                <option key={set.id} value={set.id}>
+                  {set.name}
+                </option>
+              ))}
+            </select>
+            {!locked && (
+              <>
+                <SizeCell
+                  value={subject.size}
+                  onSave={(size) =>
+                    run(() =>
+                      api.updateSubject(
+                        subject.id,
+                        subject.name,
+                        subject.note,
+                        subject.reference,
+                        size,
+                      ),
+                    )
+                  }
+                />
+                <button
+                  className="chip"
+                  aria-pressed={subject.reference}
+                  title="Not one of my own benchmarks"
+                  onClick={() =>
+                    run(() =>
+                      api.updateSubject(
+                        subject.id,
+                        subject.name,
+                        subject.note,
+                        !subject.reference,
+                        subject.size,
+                      ),
+                    )
+                  }
+                >
+                  <span className={subject.reference ? "swatch ref" : "swatch"} />
+                  reference
+                </button>
+              </>
+            )}
           </>
         ) : (
           <>
@@ -214,7 +287,7 @@ function SubjectTable({ subject, data, tasks, admin, onMoveUp, onMoveDown, run }
                       <span className="done" title="scored">
                         ✓
                       </span>
-                    ) : admin ? (
+                    ) : editable ? (
                       <input
                         type="checkbox"
                         autoComplete="off"
@@ -229,10 +302,12 @@ function SubjectTable({ subject, data, tasks, admin, onMoveUp, onMoveDown, run }
                     )}
                   </td>
                   <td className="num">
-                    {admin ? (
+                    {editable ? (
                       <ScoreCell
                         value={cell?.value}
-                        onSave={(value) => save(task.id, value, value !== null || (cell?.computed ?? false))}
+                        onSave={(value) =>
+                          save(task.id, value, value !== null || (cell?.computed ?? false))
+                        }
                       />
                     ) : (
                       <span className={hasValue ? undefined : "muted"}>
@@ -249,8 +324,9 @@ function SubjectTable({ subject, data, tasks, admin, onMoveUp, onMoveDown, run }
 
       {tasks.length > 0 && (
         <p className="muted table-foot">
-          {scored} / {tasks.length} scored
-          {pending > 0 && ` · ${pending} awaiting a number`}
+          {locked
+            ? "locked until this model has a task set"
+            : `${scored} / ${tasks.length} scored${pending > 0 ? ` · ${pending} awaiting a number` : ""}`}
         </p>
       )}
     </section>
