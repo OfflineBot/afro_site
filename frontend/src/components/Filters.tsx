@@ -40,14 +40,16 @@ export default function FilterRow({
         <span className="muted filter-count">
           {shownCount} / {items.length}
         </span>
-        <span style={{ flex: 1 }} />
-        {extra}
-        <button className="btn" onClick={onShowAll}>
-          All
-        </button>
-        <button className="btn" onClick={onHideAll}>
-          None
-        </button>
+        <span className="filter-spacer" />
+        <span className="filter-actions">
+          {extra}
+          <button className="btn" onClick={onShowAll}>
+            All
+          </button>
+          <button className="btn" onClick={onHideAll}>
+            None
+          </button>
+        </span>
       </div>
       {items.length === 0 ? (
         <div className="empty">nothing yet</div>

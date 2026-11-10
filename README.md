@@ -46,8 +46,13 @@ A model with no set yet is listed apart under *Scores*, locked, until a set is p
 it from its dropdown. Moving a model between sets never touches its scores — they hang on
 the task, so they reappear as soon as it is back in the set those tasks belong to.
 
-- **Chart** — pick subjects and tasks in the single *Filters* card, group the bars `by task` or
-  `by subject`, switch to `table` for the raw numbers. A task that is computed but has no
+- **Chart** — pick models and tasks in the single *Filters* card, group the bars `by task`
+  or `by subject`, or plot `by size`: a line per task over a logarithmic size axis, which
+  is where a scaling curve shows itself. Models without a size cannot be placed and stay
+  out of that view. The points are joined straight, never smoothed, so no value appears
+  that was not measured. `table` shows the raw numbers in every mode.
+  The *Filters* card sits `side` by side with the chart on a wide screen, moves back on
+  `top` on a narrow one, and `hide` gives the chart the full width. A task that is computed but has no
   number yet shows as a dashed stub on the baseline instead of being silently absent.
   Reference subjects keep their own colour and are drawn with a hatched fill, so they read
   apart from your own benchmarks in both the filter chips and the bars. `subject order`

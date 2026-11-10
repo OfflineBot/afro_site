@@ -32,6 +32,8 @@ export default function App() {
   const [admin, setAdmin] = useState(false);
   const [sort, setSort] = useState<SubjectSort>("manual");
   const [setId, setSetId] = useState<number | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersSide, setFiltersSide] = useState(true);
   const data = useData();
   const subjectFilter = useSelection();
   const taskFilter = useSelection();
@@ -107,7 +109,19 @@ export default function App() {
         )}
 
         {!data.loading && activeTab === "chart" && (
-          <>
+          <div className={filtersOpen && filtersSide ? "chart-layout side" : "chart-layout"}>
+            {!filtersOpen && (
+              <div className="row filters-stub">
+                <button className="btn" onClick={() => setFiltersOpen(true)}>
+                  show filters
+                </button>
+                <span className="muted">
+                  {shownSubjects.length}/{setSubjects.length} models · {shownTasks.length}/
+                  {tasks.length} tasks
+                </span>
+              </div>
+            )}
+            {filtersOpen && (
             <div className="card filters">
               <div className="card-head">
                 <h2>Filters</h2>
@@ -116,6 +130,28 @@ export default function App() {
                     <span className="swatch ref" /> reference
                   </span>
                 )}
+                <span className="filter-spacer" />
+                <span className="filter-actions">
+                  <div className="tabs">
+                    <button
+                      role="tab"
+                      aria-selected={filtersSide}
+                      onClick={() => setFiltersSide(true)}
+                    >
+                      side
+                    </button>
+                    <button
+                      role="tab"
+                      aria-selected={!filtersSide}
+                      onClick={() => setFiltersSide(false)}
+                    >
+                      top
+                    </button>
+                  </div>
+                  <button className="btn" onClick={() => setFiltersOpen(false)}>
+                    hide
+                  </button>
+                </span>
               </div>
               <FilterRow
                 title="Subjects"
@@ -140,6 +176,7 @@ export default function App() {
                 colorOf={taskColor}
               />
             </div>
+            )}
             <ScoreChart
               subjects={shownSubjects}
               tasks={shownTasks}
@@ -148,7 +185,7 @@ export default function App() {
               taskColor={taskColor}
               isReference={(id) => subjectOf(id)?.reference ?? false}
             />
-          </>
+          </div>
         )}
 
         {!data.loading && activeTab === "scores" && (
