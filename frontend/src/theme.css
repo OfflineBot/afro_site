@@ -326,7 +326,7 @@ th.num {
 /* chart */
 .chart-wrap {
   width: 100%;
-  height: clamp(380px, 54vh, 640px);
+  height: clamp(420px, 68vh, 900px);
 }
 
 .tooltip {
@@ -618,26 +618,6 @@ input[type="checkbox"]:disabled {
   padding: 2px 7px;
 }
 
-/* one card, one row per dimension — the filters used to be two separate cards */
-.filters .filter-row + .filter-row {
-  margin-top: 16px;
-  border-top: 1px solid var(--surface0);
-  padding-top: 14px;
-}
-
-.filter-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.filter-head h3 {
-  margin: 0;
-  font-size: 14px;
-  color: var(--text);
-}
-
 .filter-note {
   font-size: 12px;
   color: var(--mauve);
@@ -721,52 +701,113 @@ input[type="checkbox"]:disabled {
   white-space: nowrap;
 }
 
-/* on a wide screen the filters sit beside the chart instead of eating a band of it */
-.chart-layout {
-  display: grid;
-  gap: var(--gap);
-  align-items: start;
-}
 
-@media (min-width: 1100px) {
-  .chart-layout.side {
-    grid-template-columns: 320px minmax(0, 1fr);
-  }
-}
-
-.chart-layout .card {
-  margin-bottom: 0;
-}
-
-.filter-head,
-.filters .card-head {
+/* the pickers live in the chart head; the lists only open when asked for */
+.chart-head {
   flex-wrap: wrap;
+  gap: 10px;
 }
 
-/* the buttons wrap together instead of one per line in the narrow side column */
 .filter-spacer {
   flex: 1 1 0;
   min-width: 0;
 }
 
-.filter-actions {
+.filter-menu {
+  position: relative;
+}
+
+.filter-menu > .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.filter-count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--overlay0);
+}
+
+.filter-count.narrowed {
+  color: var(--mauve);
+}
+
+.caret {
+  font-size: 10px;
+  color: var(--overlay0);
+}
+
+.filter-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 260px;
+  max-height: min(60vh, 460px);
+  overflow-y: auto;
+  background: var(--mantle);
+  border: 1px solid var(--surface1);
+  border-radius: var(--radius);
+  padding: 10px;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.45);
+}
+
+.filter-pop-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
+  margin-bottom: 8px;
 }
 
-.chart-layout.side .filter-actions .btn,
-.chart-layout.side .filter-actions .tabs button {
-  padding: 4px 9px;
+.filter-pop-extra {
+  margin-bottom: 8px;
+}
+
+.filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 8px;
+  cursor: pointer;
+  color: var(--subtext0);
+  text-align: left;
+}
+
+.filter-item:hover {
+  background: var(--surface0);
+  color: var(--text);
+}
+
+.filter-item[aria-pressed="true"] {
+  color: var(--text);
+}
+
+.filter-item-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.tick {
+  width: 14px;
+  flex: none;
+  color: var(--green);
   font-size: 12px;
 }
 
-.filters-stub {
-  align-items: center;
-  gap: 12px;
-}
-
-.chart-layout.side .chips {
-  gap: 5px;
+.filter-item .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
 }

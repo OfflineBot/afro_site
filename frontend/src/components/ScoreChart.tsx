@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -26,6 +26,8 @@ type Props = {
   subjectColor: (id: number) => string;
   taskColor: (id: number) => string;
   isReference: (subjectId: number) => boolean;
+  // The model and task pickers live in this card's head, so the plot keeps the whole area.
+  filters?: ReactNode;
 };
 
 export default function ScoreChart({
@@ -35,6 +37,7 @@ export default function ScoreChart({
   subjectColor,
   taskColor,
   isReference,
+  filters,
 }: Props) {
   const [mode, setMode] = useState<Mode>("task");
   const [view, setView] = useState<View>("bars");
@@ -84,9 +87,10 @@ export default function ScoreChart({
 
   return (
     <div className="card">
-      <div className="card-head">
+      <div className="card-head chart-head">
         <h2>Scores</h2>
-        <span style={{ flex: 1 }} />
+        {filters}
+        <span className="filter-spacer" />
         <div className="tabs">
           <button role="tab" aria-selected={byTask} onClick={() => setMode("task")}>
             by task
@@ -277,7 +281,7 @@ export default function ScoreChart({
           <table>
             <thead>
               <tr>
-                <th>{byTask ? "Task" : "Subject"}</th>
+                <th>{byTask ? "Task" : "Model"}</th>
                 {series.map((item) => (
                   <th key={item.id} className="num">
                     {item.name}

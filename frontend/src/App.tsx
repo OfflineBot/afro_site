@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import ArchivePanel from "./components/ArchivePanel";
-import FilterRow from "./components/Filters";
+import FilterMenu from "./components/FilterMenu";
 import Login from "./components/Login";
 import ScoreChart from "./components/ScoreChart";
 import ScoreTables from "./components/ScoreTables";
@@ -32,8 +32,6 @@ export default function App() {
   const [admin, setAdmin] = useState(false);
   const [sort, setSort] = useState<SubjectSort>("manual");
   const [setId, setSetId] = useState<number | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(true);
-  const [filtersSide, setFiltersSide] = useState(true);
   const data = useData();
   const subjectFilter = useSelection();
   const taskFilter = useSelection();
@@ -109,83 +107,41 @@ export default function App() {
         )}
 
         {!data.loading && activeTab === "chart" && (
-          <div className={filtersOpen && filtersSide ? "chart-layout side" : "chart-layout"}>
-            {!filtersOpen && (
-              <div className="row filters-stub">
-                <button className="btn" onClick={() => setFiltersOpen(true)}>
-                  show filters
-                </button>
-                <span className="muted">
-                  {shownSubjects.length}/{setSubjects.length} models · {shownTasks.length}/
-                  {tasks.length} tasks
-                </span>
-              </div>
-            )}
-            {filtersOpen && (
-            <div className="card filters">
-              <div className="card-head">
-                <h2>Filters</h2>
-                {anyReference && (
-                  <span className="muted filter-key">
-                    <span className="swatch ref" /> reference
-                  </span>
-                )}
-                <span className="filter-spacer" />
-                <span className="filter-actions">
-                  <div className="tabs">
-                    <button
-                      role="tab"
-                      aria-selected={filtersSide}
-                      onClick={() => setFiltersSide(true)}
-                    >
-                      side
-                    </button>
-                    <button
-                      role="tab"
-                      aria-selected={!filtersSide}
-                      onClick={() => setFiltersSide(false)}
-                    >
-                      top
-                    </button>
-                  </div>
-                  <button className="btn" onClick={() => setFiltersOpen(false)}>
-                    hide
-                  </button>
-                </span>
-              </div>
-              <FilterRow
-                title="Subjects"
-                items={orderedSubjects}
-                isShown={subjectFilter.isShown}
-                onToggle={subjectFilter.toggle}
-                onShowAll={subjectFilter.showAll}
-                onHideAll={() => subjectFilter.hideAll(setSubjects.map((s) => s.id))}
-                colorOf={subjectColor}
-                isReference={(id) => subjectOf(id)?.reference ?? false}
-                metaOf={(id) => formatSize(subjectOf(id)?.size)}
-                extra={<SortControl value={sort} onChange={setSort} />}
-              />
-              <FilterRow
-                title="Tasks"
-                note={activeSet?.name}
-                items={tasks}
-                isShown={taskFilter.isShown}
-                onToggle={taskFilter.toggle}
-                onShowAll={taskFilter.showAll}
-                onHideAll={() => taskFilter.hideAll(tasks.map((t) => t.id))}
-                colorOf={taskColor}
-              />
-            </div>
-            )}
-            <ScoreChart
-              subjects={shownSubjects}
-              tasks={shownTasks}
-              cell={data.cell}
-              subjectColor={subjectColor}
-              taskColor={taskColor}
-              isReference={(id) => subjectOf(id)?.reference ?? false}
-            />
-          </div>
+          <ScoreChart
+            subjects={shownSubjects}
+            tasks={shownTasks}
+            cell={data.cell}
+            subjectColor={subjectColor}
+            taskColor={taskColor}
+            isReference={(id) => subjectOf(id)?.reference ?? false}
+            filters={
+              <>
+                <FilterMenu
+                  label="Models"
+                  items={orderedSubjects}
+                  isShown={subjectFilter.isShown}
+                  onToggle={subjectFilter.toggle}
+                  onShowAll={subjectFilter.showAll}
+                  onHideAll={() => subjectFilter.hideAll(setSubjects.map((s) => s.id))}
+                  colorOf={subjectColor}
+                  isReference={(id) => subjectOf(id)?.reference ?? false}
+                  metaOf={(id) => formatSize(subjectOf(id)?.size)}
+                  note={anyReference ? "▨ reference" : undefined}
+                  extra={<SortControl value={sort} onChange={setSort} />}
+                />
+                <FilterMenu
+                  label="Tasks"
+                  items={tasks}
+                  isShown={taskFilter.isShown}
+                  onToggle={taskFilter.toggle}
+                  onShowAll={taskFilter.showAll}
+                  onHideAll={() => taskFilter.hideAll(tasks.map((t) => t.id))}
+                  colorOf={taskColor}
+                  note={activeSet?.name}
+                />
+              </>
+            }
+          />
         )}
 
         {!data.loading && activeTab === "scores" && (

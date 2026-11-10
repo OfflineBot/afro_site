@@ -46,17 +46,13 @@ A model with no set yet is listed apart under *Scores*, locked, until a set is p
 it from its dropdown. Moving a model between sets never touches its scores — they hang on
 the task, so they reappear as soon as it is back in the set those tasks belong to.
 
-- **Chart** — pick models and tasks in the single *Filters* card, group the bars `by task`
-  or `by subject`, or plot `by size`: a line per task over a logarithmic size axis, which
-  is where a scaling curve shows itself. Models without a size cannot be placed and stay
-  out of that view. The points are joined straight, never smoothed, so no value appears
-  that was not measured. `table` shows the raw numbers in every mode.
-  The *Filters* card sits `side` by side with the chart on a wide screen, moves back on
-  `top` on a narrow one, and `hide` gives the chart the full width. A task that is computed but has no
-  number yet shows as a dashed stub on the baseline instead of being silently absent.
-  Reference subjects keep their own colour and are drawn with a hatched fill, so they read
-  apart from your own benchmarks in both the filter chips and the bars. `subject order`
-  switches between the hand-made order and the subject size, smallest or largest first.
+- **Chart** — the plot owns the card; the *Models* and *Tasks* pickers are two dropdowns in
+  its head, each showing how many of how many are on. Open one and click entries to toggle
+  them, with *All* / *None* and the model order inside. Group the bars `by task` or
+  `by subject`, or plot `by size`: a line per task over a logarithmic size axis, which is
+  where a scaling curve shows itself. Models without a size cannot be placed and stay out
+  of that view. Points are joined straight, never smoothed, so no value appears that was
+  not measured. `table` shows the raw numbers in every mode.
 - **Scores** — one table per model of the active set, task rows with a Done mark and the score. Tick *Done*
   for a task that is computed while the number is still pending; typing a score ticks it.
   Empty the score field to take the number back out. Tables reorder with ↑ ↓ while

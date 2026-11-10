@@ -29,7 +29,7 @@ export default function SortControl({
   if (!standalone) return tabs;
   return (
     <div className="row sort-row">
-      <span className="muted">subject order</span>
+      <span className="muted">model order</span>
       {tabs}
     </div>
   );

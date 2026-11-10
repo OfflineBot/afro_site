@@ -51,7 +51,7 @@ export default function ScoreTables({
 
       {subjects.length === 0 ? (
         <div className="card">
-          <div className="empty">no tables in this set</div>
+          <div className="empty">no models in this set</div>
         </div>
       ) : (
         <div className="tables">
