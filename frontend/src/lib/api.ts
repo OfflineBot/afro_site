@@ -5,8 +5,9 @@ export type Subject = {
   position: number;
   reference: boolean;
   size: number | null;
+  archived: boolean;
 };
-export type Task = { id: number; name: string; position: number };
+export type Task = { id: number; name: string; position: number; archived: boolean };
 export type Score = {
   subject_id: number;
   task_id: number;
@@ -48,13 +49,15 @@ export const api = {
     request<Subject>("POST", "/subjects", { name, note, reference, size }),
   updateSubject: (id: number, name: string, note: string, reference: boolean, size: number | null) =>
     request<Subject>("PATCH", `/subjects/${id}`, { name, note, reference, size }),
-  deleteSubject: (id: number) => request<void>("DELETE", `/subjects/${id}`),
+  archiveSubject: (id: number, archived: boolean) =>
+    request<Subject>("PUT", `/subjects/${id}/archived`, { archived }),
   reorderSubjects: (ids: number[]) => request<Subject[]>("PUT", "/subjects/order", { ids }),
 
   tasks: () => request<Task[]>("GET", "/tasks"),
   createTask: (name: string) => request<Task>("POST", "/tasks", { name }),
   updateTask: (id: number, name: string) => request<Task>("PATCH", `/tasks/${id}`, { name }),
-  deleteTask: (id: number) => request<void>("DELETE", `/tasks/${id}`),
+  archiveTask: (id: number, archived: boolean) =>
+    request<Task>("PUT", `/tasks/${id}/archived`, { archived }),
   reorderTasks: (ids: number[]) => request<Task[]>("PUT", "/tasks/order", { ids }),
 
   scores: () => request<Score[]>("GET", "/scores"),

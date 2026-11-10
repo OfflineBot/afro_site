@@ -4,6 +4,9 @@ import { api, type Score, type Subject, type Task } from "./api";
 export type Data = {
   subjects: Subject[];
   tasks: Task[];
+  // Only an admin ever receives these; the API leaves them out for everyone else.
+  archivedSubjects: Subject[];
+  archivedTasks: Task[];
   cell: (subjectId: number, taskId: number) => Score | undefined;
   reload: () => Promise<void>;
   loading: boolean;
@@ -38,8 +41,10 @@ export function useData(): Data {
   const byCell = new Map(scores.map((s) => [`${s.subject_id}:${s.task_id}`, s]));
 
   return {
-    subjects,
-    tasks,
+    subjects: subjects.filter((s) => !s.archived),
+    tasks: tasks.filter((t) => !t.archived),
+    archivedSubjects: subjects.filter((s) => s.archived),
+    archivedTasks: tasks.filter((t) => t.archived),
     cell: (subjectId, taskId) => byCell.get(`${subjectId}:${taskId}`),
     reload,
     loading,

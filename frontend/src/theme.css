@@ -193,7 +193,7 @@ input::placeholder {
 }
 
 .btn-ghost:hover {
-  color: var(--red);
+  color: var(--text);
   background: var(--surface0);
 }
 
@@ -596,4 +596,24 @@ input[type="checkbox"]:disabled {
 
 .chip[aria-pressed="true"] .chip-meta {
   color: var(--subtext0);
+}
+
+.archive-title {
+  color: var(--subtext0);
+}
+
+.archive-flat {
+  margin-top: 18px;
+  border-top: 1px solid var(--surface0);
+  padding-top: 14px;
+}
+
+.chip.archived {
+  color: var(--overlay0);
+  padding-right: 4px;
+}
+
+.chip.archived .btn-ghost {
+  font-size: 12px;
+  padding: 2px 7px;
 }

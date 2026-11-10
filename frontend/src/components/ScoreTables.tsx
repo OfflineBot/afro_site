@@ -3,6 +3,7 @@ import { format } from "../lib/format";
 import { formatSize } from "../lib/size";
 import { moved, useAction } from "../lib/useAction";
 import type { Data } from "../lib/useData";
+import ArchiveList from "./ArchiveList";
 import { AddForm, ScoreCell, SizeCell, TextCell } from "./fields";
 
 type Props = {
@@ -57,6 +58,17 @@ export default function ScoreTables({ data, subjects, admin, manual }: Props) {
           ))}
         </div>
       )}
+
+      {admin && data.archivedSubjects.length > 0 && (
+        <ArchiveList
+          items={data.archivedSubjects.map((subject) => ({
+            id: subject.id,
+            name: subject.name,
+            meta: formatSize(subject.size),
+          }))}
+          onRestore={(id) => run(() => api.archiveSubject(id, false))}
+        />
+      )}
     </>
   );
 }
@@ -106,10 +118,10 @@ function SubjectTable({ subject, data, admin, onMoveUp, onMoveDown, run }: Table
             </button>
             <button
               className="btn-ghost"
-              title="Delete"
-              onClick={() => run(() => api.deleteSubject(subject.id))}
+              title="Move out of the public view"
+              onClick={() => run(() => api.archiveSubject(subject.id, true))}
             >
-              ✕
+              archive
             </button>
           </span>
         )}

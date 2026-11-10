@@ -36,12 +36,12 @@ func New(st *store.Store, adminPassword string) *fiber.App {
 	admin := api.Group("", s.requireAdmin)
 	admin.Post("/subjects", s.createSubject)
 	admin.Patch("/subjects/:id", s.updateSubject)
-	admin.Delete("/subjects/:id", s.deleteSubject)
 	admin.Put("/subjects/order", s.reorderSubjects)
+	admin.Put("/subjects/:id/archived", s.archiveSubject)
 	admin.Post("/tasks", s.createTask)
 	admin.Put("/tasks/order", s.reorderTasks)
 	admin.Patch("/tasks/:id", s.updateTask)
-	admin.Delete("/tasks/:id", s.deleteTask)
+	admin.Put("/tasks/:id/archived", s.archiveTask)
 	admin.Put("/scores", s.setScore)
 	admin.Delete("/scores/:subjectId/:taskId", s.deleteScore)
 
@@ -61,11 +61,15 @@ func (s *server) login(c *fiber.Ctx) error {
 }
 
 func (s *server) session(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"admin": s.bearer(c) == s.token})
+	return c.JSON(fiber.Map{"admin": s.isAdmin(c)})
+}
+
+func (s *server) isAdmin(c *fiber.Ctx) bool {
+	return subtle.ConstantTimeCompare([]byte(s.bearer(c)), []byte(s.token)) == 1
 }
 
 func (s *server) requireAdmin(c *fiber.Ctx) error {
-	if subtle.ConstantTimeCompare([]byte(s.bearer(c)), []byte(s.token)) != 1 {
+	if !s.isAdmin(c) {
 		return fiber.NewError(fiber.StatusUnauthorized, "login required")
 	}
 	return c.Next()
@@ -76,7 +80,7 @@ func (s *server) bearer(c *fiber.Ctx) string {
 }
 
 func (s *server) listSubjects(c *fiber.Ctx) error {
-	v, err := s.st.Subjects(c.Context())
+	v, err := s.st.Subjects(c.Context(), s.isAdmin(c))
 	return respond(c, v, err)
 }
 
@@ -105,19 +109,17 @@ func (s *server) updateSubject(c *fiber.Ctx) error {
 	return respond(c, v, err)
 }
 
-func (s *server) deleteSubject(c *fiber.Ctx) error {
-	id, err := param(c, "id")
+func (s *server) archiveSubject(c *fiber.Ctx) error {
+	id, archived, err := parseArchived(c)
 	if err != nil {
 		return err
 	}
-	if err := s.st.DeleteSubject(c.Context(), id); err != nil {
-		return err
-	}
-	return c.SendStatus(fiber.StatusNoContent)
+	v, err := s.st.ArchiveSubject(c.Context(), id, archived)
+	return respond(c, v, err)
 }
 
 func (s *server) listTasks(c *fiber.Ctx) error {
-	v, err := s.st.Tasks(c.Context())
+	v, err := s.st.Tasks(c.Context(), s.isAdmin(c))
 	return respond(c, v, err)
 }
 
@@ -146,15 +148,13 @@ func (s *server) updateTask(c *fiber.Ctx) error {
 	return respond(c, v, err)
 }
 
-func (s *server) deleteTask(c *fiber.Ctx) error {
-	id, err := param(c, "id")
+func (s *server) archiveTask(c *fiber.Ctx) error {
+	id, archived, err := parseArchived(c)
 	if err != nil {
 		return err
 	}
-	if err := s.st.DeleteTask(c.Context(), id); err != nil {
-		return err
-	}
-	return c.SendStatus(fiber.StatusNoContent)
+	v, err := s.st.ArchiveTask(c.Context(), id, archived)
+	return respond(c, v, err)
 }
 
 func (s *server) listScores(c *fiber.Ctx) error {
@@ -257,6 +257,20 @@ func parseSubject(c *fiber.Ctx) (subjectBody, error) {
 		return body, fiber.NewError(fiber.StatusBadRequest, "size must be greater than 0")
 	}
 	return body, nil
+}
+
+func parseArchived(c *fiber.Ctx) (int, bool, error) {
+	id, err := param(c, "id")
+	if err != nil {
+		return 0, false, err
+	}
+	var body struct {
+		Archived bool `json:"archived"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return 0, false, fiber.NewError(fiber.StatusBadRequest, "invalid body")
+	}
+	return id, body.Archived, nil
 }
 
 func parseTask(c *fiber.Ctx) (string, error) {

@@ -27,13 +27,15 @@ type Subject struct {
 	Position  int    `json:"position"`
 	Reference bool   `json:"reference"`
 	// Size is a parameter count in billions, nil when unknown.
-	Size *float64 `json:"size"`
+	Size     *float64 `json:"size"`
+	Archived bool     `json:"archived"`
 }
 
 type Task struct {
 	ID       int    `json:"id"`
 	Name     string `json:"name"`
 	Position int    `json:"position"`
+	Archived bool   `json:"archived"`
 }
 
 // A Score row exists as soon as a task is marked computed; Value stays nil until
@@ -72,12 +74,14 @@ func (s *Store) Migrate(ctx context.Context) error {
 			note      text NOT NULL DEFAULT '',
 			position  integer NOT NULL DEFAULT 0,
 			reference boolean NOT NULL DEFAULT false,
-			size      double precision CHECK (size > 0)
+			size      double precision CHECK (size > 0),
+			archived  boolean NOT NULL DEFAULT false
 		);
 		CREATE TABLE IF NOT EXISTS tasks (
 			id       serial PRIMARY KEY,
 			name     text NOT NULL UNIQUE,
-			position integer NOT NULL DEFAULT 0
+			position integer NOT NULL DEFAULT 0,
+			archived boolean NOT NULL DEFAULT false
 		);
 		CREATE TABLE IF NOT EXISTS scores (
 			subject_id integer NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
@@ -90,6 +94,8 @@ func (s *Store) Migrate(ctx context.Context) error {
 		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS position integer NOT NULL DEFAULT 0;
 		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS reference boolean NOT NULL DEFAULT false;
 		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS size double precision CHECK (size > 0);
+		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
+		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
 		ALTER TABLE scores ALTER COLUMN value DROP NOT NULL;
 		ALTER TABLE scores ADD COLUMN IF NOT EXISTS computed boolean NOT NULL DEFAULT false;
 
@@ -101,15 +107,17 @@ func (s *Store) Migrate(ctx context.Context) error {
 	return err
 }
 
-func (s *Store) Subjects(ctx context.Context) ([]Subject, error) {
+// Subjects leaves the archive out unless withArchived is set; only an admin sees it.
+func (s *Store) Subjects(ctx context.Context, withArchived bool) ([]Subject, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, name, note, position, reference, size FROM subjects ORDER BY position, id`)
+		`SELECT id, name, note, position, reference, size, archived FROM subjects
+		 WHERE $1 OR NOT archived ORDER BY position, id`, withArchived)
 	if err != nil {
 		return nil, err
 	}
 	return collect(rows, func(r pgx.Rows) (Subject, error) {
 		var v Subject
-		return v, r.Scan(&v.ID, &v.Name, &v.Note, &v.Position, &v.Reference, &v.Size)
+		return v, r.Scan(&v.ID, &v.Name, &v.Note, &v.Position, &v.Reference, &v.Size, &v.Archived)
 	})
 }
 
@@ -131,18 +139,27 @@ func (s *Store) UpdateSubject(ctx context.Context, id int, name, note string, re
 	return v, wrap(err)
 }
 
-func (s *Store) DeleteSubject(ctx context.Context, id int) error {
-	return s.exec(ctx, `DELETE FROM subjects WHERE id = $1`, id)
+// Restoring puts the row back at the end, since its old position was reused meanwhile.
+func (s *Store) ArchiveSubject(ctx context.Context, id int, archived bool) (Subject, error) {
+	v := Subject{ID: id}
+	err := s.pool.QueryRow(ctx,
+		`UPDATE subjects SET archived = $2, position = CASE WHEN $2 THEN position
+		   ELSE (SELECT COALESCE(MAX(position), 0) + 1 FROM subjects WHERE NOT archived) END
+		 WHERE id = $1 RETURNING name, note, position, reference, size, archived`,
+		id, archived).Scan(&v.Name, &v.Note, &v.Position, &v.Reference, &v.Size, &v.Archived)
+	return v, wrap(err)
 }
 
-func (s *Store) Tasks(ctx context.Context) ([]Task, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, name, position FROM tasks ORDER BY position, id`)
+func (s *Store) Tasks(ctx context.Context, withArchived bool) ([]Task, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, name, position, archived FROM tasks
+		 WHERE $1 OR NOT archived ORDER BY position, id`, withArchived)
 	if err != nil {
 		return nil, err
 	}
 	return collect(rows, func(r pgx.Rows) (Task, error) {
 		var v Task
-		return v, r.Scan(&v.ID, &v.Name, &v.Position)
+		return v, r.Scan(&v.ID, &v.Name, &v.Position, &v.Archived)
 	})
 }
 
@@ -190,8 +207,14 @@ func (s *Store) reorder(ctx context.Context, table string, ids []int) error {
 	return tx.Commit(ctx)
 }
 
-func (s *Store) DeleteTask(ctx context.Context, id int) error {
-	return s.exec(ctx, `DELETE FROM tasks WHERE id = $1`, id)
+func (s *Store) ArchiveTask(ctx context.Context, id int, archived bool) (Task, error) {
+	v := Task{ID: id}
+	err := s.pool.QueryRow(ctx,
+		`UPDATE tasks SET archived = $2, position = CASE WHEN $2 THEN position
+		   ELSE (SELECT COALESCE(MAX(position), 0) + 1 FROM tasks WHERE NOT archived) END
+		 WHERE id = $1 RETURNING name, position, archived`,
+		id, archived).Scan(&v.Name, &v.Position, &v.Archived)
+	return v, wrap(err)
 }
 
 func (s *Store) Scores(ctx context.Context) ([]Score, error) {

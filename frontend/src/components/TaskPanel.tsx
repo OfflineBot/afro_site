@@ -1,6 +1,7 @@
 import { api } from "../lib/api";
 import { moved, useAction } from "../lib/useAction";
 import type { Data } from "../lib/useData";
+import ArchiveList from "./ArchiveList";
 import { AddForm, TextCell } from "./fields";
 
 export default function TaskPanel({ data, admin }: { data: Data; admin: boolean }) {
@@ -61,10 +62,10 @@ export default function TaskPanel({ data, admin }: { data: Data; admin: boolean 
                     </button>
                     <button
                       className="btn-ghost"
-                      title="Delete"
-                      onClick={() => run(() => api.deleteTask(task.id))}
+                      title="Move out of the public view"
+                      onClick={() => run(() => api.archiveTask(task.id, true))}
                     >
-                      ✕
+                      archive
                     </button>
                   </td>
                 )}
@@ -72,6 +73,14 @@ export default function TaskPanel({ data, admin }: { data: Data; admin: boolean 
             ))}
           </tbody>
         </table>
+      )}
+
+      {admin && data.archivedTasks.length > 0 && (
+        <ArchiveList
+          flat
+          items={data.archivedTasks.map((task) => ({ id: task.id, name: task.name }))}
+          onRestore={(id) => run(() => api.archiveTask(id, false))}
+        />
       )}
     </section>
   );

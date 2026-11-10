@@ -10,7 +10,7 @@ export function parseSize(text: string): number | null {
 }
 
 export const formatSize = (size: number | null | undefined) =>
-  size == null ? "" : `${Number(size.toPrecision(4))}B`;
+  size == null ? "" : `${Number(size.toPrecision(4))}`.replace(".", ",") + "B";
 
 export function sortSubjects<T extends { size: number | null; position: number }>(
   subjects: T[],

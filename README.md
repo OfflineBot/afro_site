@@ -42,9 +42,15 @@ the tunnel.
   for a task that is computed while the number is still pending; typing a score ticks it.
   Empty the score field to take the number back out. Tables reorder with ↑ ↓ while
   `subject order` is `manual`. Mark a subject *reference* when it is not one of your own
-  benchmarks, and give it a size such as `0.8B`, `4B` or `700M` to sort by it; subjects
+  benchmarks, and give it a size such as `0,8B`, `4B` or `700M` to sort by it; subjects
   without a size are listed last.
-- **Tasks** — the shared task list every table uses. Add, rename, reorder, delete.
+- **Tasks** — the shared task list every table uses. Add, rename, reorder, archive.
+
+Nothing is ever deleted. *archive* takes a subject or a task out of the board while its
+scores stay in the database; an **Archive** list underneath brings it back with *restore*.
+A restored entry lands at the end of the order, since its old place was taken meanwhile.
+The archive is visible only once logged in — the API leaves archived rows out for everyone
+else.
 
 Editing needs a password (no user name), kept in `localStorage`. It defaults to `admin`
 in the dev stack and comes from `ADMIN_PASSWORD` in the production one.
@@ -63,8 +69,9 @@ frontend/   React + Vite; dev server in development, nginx build in production
 | POST | `/api/login` | — |
 | GET | `/api/session` | — |
 | GET | `/api/subjects`, `/api/tasks`, `/api/scores` | — |
-| POST/PATCH/DELETE | `/api/subjects/:id`, `/api/tasks/:id` | bearer |
+| POST/PATCH | `/api/subjects/:id`, `/api/tasks/:id` | bearer |
 | PUT | `/api/subjects/order`, `/api/tasks/order` | bearer |
+| PUT | `/api/subjects/:id/archived`, `/api/tasks/:id/archived` | bearer |
 | PUT | `/api/scores` | bearer |
 
 `PUT /api/scores` takes `{subject_id, task_id, value, computed}`. A `value` implies
@@ -72,4 +79,6 @@ frontend/   React + Vite; dev server in development, nginx build in production
 
 `PATCH /api/subjects/:id` replaces the whole subject, so send `reference` and `size` along
 with `name` and `note` — a missing `reference` reads as `false`, a missing `size` as none.
-`size` is a parameter count in billions, so `0.8` is 0.8B.
+`size` is a parameter count in billions, so `0.8` is 0,8B.
+
+`PUT .../archived` takes `{archived}`. There is no delete route for subjects or tasks.
