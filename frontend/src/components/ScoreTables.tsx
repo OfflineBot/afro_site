@@ -1,14 +1,23 @@
 import { api, type Subject } from "../lib/api";
 import { format } from "../lib/format";
+import { formatSize } from "../lib/size";
 import { moved, useAction } from "../lib/useAction";
 import type { Data } from "../lib/useData";
-import { AddForm, ScoreCell, TextCell } from "./fields";
+import { AddForm, ScoreCell, SizeCell, TextCell } from "./fields";
 
-export default function ScoreTables({ data, admin }: { data: Data; admin: boolean }) {
+type Props = {
+  data: Data;
+  subjects: Subject[];
+  admin: boolean;
+  // The move buttons write positions, so they only make sense while that order is the one shown.
+  manual: boolean;
+};
+
+export default function ScoreTables({ data, subjects, admin, manual }: Props) {
   const { run, error } = useAction(data.reload);
 
   const move = (index: number, to: number) =>
-    run(() => api.reorderSubjects(moved(data.subjects, index, to).map((s) => s.id)));
+    run(() => api.reorderSubjects(moved(subjects, index, to).map((s) => s.id)));
 
   return (
     <>
@@ -27,20 +36,22 @@ export default function ScoreTables({ data, admin }: { data: Data; admin: boolea
 
       {error && <p className="error">{error}</p>}
 
-      {data.subjects.length === 0 ? (
+      {subjects.length === 0 ? (
         <div className="card">
           <div className="empty">no tables yet</div>
         </div>
       ) : (
         <div className="tables">
-          {data.subjects.map((subject, index) => (
+          {subjects.map((subject, index) => (
             <SubjectTable
               key={subject.id}
               subject={subject}
               data={data}
               admin={admin}
-              onMoveUp={index === 0 ? undefined : () => move(index, index - 1)}
-              onMoveDown={index === data.subjects.length - 1 ? undefined : () => move(index, index + 1)}
+              onMoveUp={!manual || index === 0 ? undefined : () => move(index, index - 1)}
+              onMoveDown={
+                !manual || index === subjects.length - 1 ? undefined : () => move(index, index + 1)
+              }
               run={run}
             />
           ))}
@@ -76,7 +87,11 @@ function SubjectTable({ subject, data, admin, onMoveUp, onMoveDown, run }: Table
           <TextCell
             className="title-input"
             value={subject.name}
-            onSave={(name) => run(() => api.updateSubject(subject.id, name, subject.note, subject.reference))}
+            onSave={(name) =>
+              run(() =>
+                api.updateSubject(subject.id, name, subject.note, subject.reference, subject.size),
+              )
+            }
           />
         ) : (
           <h2>{subject.name}</h2>
@@ -107,7 +122,25 @@ function SubjectTable({ subject, data, admin, onMoveUp, onMoveDown, run }: Table
               className="note-input"
               value={subject.note}
               placeholder="note"
-              onSave={(note) => run(() => api.updateSubject(subject.id, subject.name, note, subject.reference))}
+              onSave={(note) =>
+                run(() =>
+                  api.updateSubject(subject.id, subject.name, note, subject.reference, subject.size),
+                )
+              }
+            />
+            <SizeCell
+              value={subject.size}
+              onSave={(size) =>
+                run(() =>
+                  api.updateSubject(
+                    subject.id,
+                    subject.name,
+                    subject.note,
+                    subject.reference,
+                    size,
+                  ),
+                )
+              }
             />
             <button
               className="chip"
@@ -115,7 +148,13 @@ function SubjectTable({ subject, data, admin, onMoveUp, onMoveDown, run }: Table
               title="Not one of my own benchmarks"
               onClick={() =>
                 run(() =>
-                  api.updateSubject(subject.id, subject.name, subject.note, !subject.reference),
+                  api.updateSubject(
+                    subject.id,
+                    subject.name,
+                    subject.note,
+                    !subject.reference,
+                    subject.size,
+                  ),
                 )
               }
             >
@@ -126,6 +165,7 @@ function SubjectTable({ subject, data, admin, onMoveUp, onMoveDown, run }: Table
         ) : (
           <>
             {subject.note && <span className="muted">{subject.note}</span>}
+            {subject.size !== null && <span className="badge">{formatSize(subject.size)}</span>}
             {subject.reference && (
               <span className="badge">
                 <span className="swatch ref" /> reference

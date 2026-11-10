@@ -26,6 +26,8 @@ type Subject struct {
 	Note      string `json:"note"`
 	Position  int    `json:"position"`
 	Reference bool   `json:"reference"`
+	// Size is a parameter count in billions, nil when unknown.
+	Size *float64 `json:"size"`
 }
 
 type Task struct {
@@ -69,7 +71,8 @@ func (s *Store) Migrate(ctx context.Context) error {
 			name      text NOT NULL UNIQUE,
 			note      text NOT NULL DEFAULT '',
 			position  integer NOT NULL DEFAULT 0,
-			reference boolean NOT NULL DEFAULT false
+			reference boolean NOT NULL DEFAULT false,
+			size      double precision CHECK (size > 0)
 		);
 		CREATE TABLE IF NOT EXISTS tasks (
 			id       serial PRIMARY KEY,
@@ -86,6 +89,7 @@ func (s *Store) Migrate(ctx context.Context) error {
 
 		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS position integer NOT NULL DEFAULT 0;
 		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS reference boolean NOT NULL DEFAULT false;
+		ALTER TABLE subjects ADD COLUMN IF NOT EXISTS size double precision CHECK (size > 0);
 		ALTER TABLE scores ALTER COLUMN value DROP NOT NULL;
 		ALTER TABLE scores ADD COLUMN IF NOT EXISTS computed boolean NOT NULL DEFAULT false;
 
@@ -99,31 +103,31 @@ func (s *Store) Migrate(ctx context.Context) error {
 
 func (s *Store) Subjects(ctx context.Context) ([]Subject, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, name, note, position, reference FROM subjects ORDER BY position, id`)
+		`SELECT id, name, note, position, reference, size FROM subjects ORDER BY position, id`)
 	if err != nil {
 		return nil, err
 	}
 	return collect(rows, func(r pgx.Rows) (Subject, error) {
 		var v Subject
-		return v, r.Scan(&v.ID, &v.Name, &v.Note, &v.Position, &v.Reference)
+		return v, r.Scan(&v.ID, &v.Name, &v.Note, &v.Position, &v.Reference, &v.Size)
 	})
 }
 
-func (s *Store) CreateSubject(ctx context.Context, name, note string, reference bool) (Subject, error) {
-	v := Subject{Name: name, Note: note, Reference: reference}
+func (s *Store) CreateSubject(ctx context.Context, name, note string, reference bool, size *float64) (Subject, error) {
+	v := Subject{Name: name, Note: note, Reference: reference, Size: size}
 	err := s.pool.QueryRow(ctx,
-		`INSERT INTO subjects (name, note, position, reference)
-		 VALUES ($1, $2, (SELECT COALESCE(MAX(position), 0) + 1 FROM subjects), $3)
-		 RETURNING id, position`, name, note, reference).Scan(&v.ID, &v.Position)
+		`INSERT INTO subjects (name, note, position, reference, size)
+		 VALUES ($1, $2, (SELECT COALESCE(MAX(position), 0) + 1 FROM subjects), $3, $4)
+		 RETURNING id, position`, name, note, reference, size).Scan(&v.ID, &v.Position)
 	return v, wrap(err)
 }
 
-func (s *Store) UpdateSubject(ctx context.Context, id int, name, note string, reference bool) (Subject, error) {
+func (s *Store) UpdateSubject(ctx context.Context, id int, name, note string, reference bool, size *float64) (Subject, error) {
 	v := Subject{ID: id}
 	err := s.pool.QueryRow(ctx,
-		`UPDATE subjects SET name = $2, note = $3, reference = $4
-		 WHERE id = $1 RETURNING name, note, position, reference`,
-		id, name, note, reference).Scan(&v.Name, &v.Note, &v.Position, &v.Reference)
+		`UPDATE subjects SET name = $2, note = $3, reference = $4, size = $5
+		 WHERE id = $1 RETURNING name, note, position, reference, size`,
+		id, name, note, reference, size).Scan(&v.Name, &v.Note, &v.Position, &v.Reference, &v.Size)
 	return v, wrap(err)
 }
 

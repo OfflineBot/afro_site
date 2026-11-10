@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatSize, parseSize } from "../lib/size";
 
 export function AddForm({ placeholder, onAdd }: { placeholder: string; onAdd: (name: string) => void }) {
   const [name, setName] = useState("");
@@ -94,6 +95,46 @@ export function ScoreCell({
       autoComplete="off"
       value={draft}
       placeholder="—"
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+    />
+  );
+}
+
+export function SizeCell({
+  value,
+  onSave,
+}: {
+  value: number | null;
+  onSave: (value: number | null) => void;
+}) {
+  const text = formatSize(value);
+  const [draft, setDraft] = useState(text);
+  useEffect(() => setDraft(text), [text]);
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed === "") {
+      if (value === null) setDraft(text);
+      else onSave(null);
+      return;
+    }
+    const next = parseSize(trimmed);
+    if (next === null || next === value) {
+      setDraft(text);
+      return;
+    }
+    onSave(next);
+  };
+
+  return (
+    <input
+      className="size-input"
+      autoComplete="off"
+      value={draft}
+      placeholder="size"
+      title="parameters, e.g. 0.8B or 700M"
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}

@@ -3,9 +3,11 @@ import Filters from "./components/Filters";
 import Login from "./components/Login";
 import ScoreChart from "./components/ScoreChart";
 import ScoreTables from "./components/ScoreTables";
+import SortControl from "./components/SortControl";
 import TaskPanel from "./components/TaskPanel";
 import { api } from "./lib/api";
 import { seriesColor } from "./lib/colors";
+import { formatSize, sortSubjects, type SubjectSort } from "./lib/size";
 import { useData } from "./lib/useData";
 import { useSelection } from "./lib/useSelection";
 
@@ -25,6 +27,7 @@ const tabFromHash = (): Tab => {
 export default function App() {
   const [tab, setTab] = useState<Tab>(tabFromHash);
   const [admin, setAdmin] = useState(false);
+  const [sort, setSort] = useState<SubjectSort>("manual");
   const data = useData();
   const subjectFilter = useSelection();
   const taskFilter = useSelection();
@@ -42,10 +45,13 @@ export default function App() {
       .catch(() => setAdmin(false));
   }, []);
 
+  // Colour follows the subject, not its rank, so sorting never repaints a series.
   const subjectColor = (id: number) => seriesColor(data.subjects.findIndex((s) => s.id === id));
   const taskColor = (id: number) => seriesColor(data.tasks.findIndex((t) => t.id === id));
+  const subjectOf = (id: number) => data.subjects.find((s) => s.id === id);
 
-  const shownSubjects = data.subjects.filter((s) => subjectFilter.isShown(s.id));
+  const orderedSubjects = sortSubjects(data.subjects, sort);
+  const shownSubjects = orderedSubjects.filter((s) => subjectFilter.isShown(s.id));
   const shownTasks = data.tasks.filter((t) => taskFilter.isShown(t.id));
 
   return (
@@ -82,16 +88,18 @@ export default function App() {
 
         {!data.loading && tab === "chart" && (
           <>
+            <SortControl value={sort} onChange={setSort} />
             <div className="grid-2">
               <Filters
                 title="Subjects"
-                items={data.subjects}
+                items={orderedSubjects}
                 isShown={subjectFilter.isShown}
                 onToggle={subjectFilter.toggle}
                 onShowAll={subjectFilter.showAll}
                 onHideAll={() => subjectFilter.hideAll(data.subjects.map((s) => s.id))}
                 colorOf={subjectColor}
-                isReference={(id) => data.subjects.find((s) => s.id === id)?.reference ?? false}
+                isReference={(id) => subjectOf(id)?.reference ?? false}
+                metaOf={(id) => formatSize(subjectOf(id)?.size)}
               />
               <Filters
                 title="Tasks"
@@ -109,12 +117,22 @@ export default function App() {
               cell={data.cell}
               subjectColor={subjectColor}
               taskColor={taskColor}
-              isReference={(id) => data.subjects.find((s) => s.id === id)?.reference ?? false}
+              isReference={(id) => subjectOf(id)?.reference ?? false}
             />
           </>
         )}
 
-        {!data.loading && tab === "scores" && <ScoreTables data={data} admin={admin} />}
+        {!data.loading && tab === "scores" && (
+          <>
+            <SortControl value={sort} onChange={setSort} />
+            <ScoreTables
+              data={data}
+              subjects={orderedSubjects}
+              admin={admin}
+              manual={sort === "manual"}
+            />
+          </>
+        )}
 
         {!data.loading && tab === "tasks" && <TaskPanel data={data} admin={admin} />}
       </main>

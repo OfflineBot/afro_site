@@ -4,6 +4,7 @@ export type Subject = {
   note: string;
   position: number;
   reference: boolean;
+  size: number | null;
 };
 export type Task = { id: number; name: string; position: number };
 export type Score = {
@@ -43,10 +44,10 @@ export const api = {
   login: (password: string) => request<{ token: string }>("POST", "/login", { password }),
 
   subjects: () => request<Subject[]>("GET", "/subjects"),
-  createSubject: (name: string, note = "", reference = false) =>
-    request<Subject>("POST", "/subjects", { name, note, reference }),
-  updateSubject: (id: number, name: string, note: string, reference: boolean) =>
-    request<Subject>("PATCH", `/subjects/${id}`, { name, note, reference }),
+  createSubject: (name: string, note = "", reference = false, size: number | null = null) =>
+    request<Subject>("POST", "/subjects", { name, note, reference, size }),
+  updateSubject: (id: number, name: string, note: string, reference: boolean, size: number | null) =>
+    request<Subject>("PATCH", `/subjects/${id}`, { name, note, reference, size }),
   deleteSubject: (id: number) => request<void>("DELETE", `/subjects/${id}`),
   reorderSubjects: (ids: number[]) => request<Subject[]>("PUT", "/subjects/order", { ids }),
 

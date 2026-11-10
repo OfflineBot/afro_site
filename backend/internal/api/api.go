@@ -85,7 +85,7 @@ func (s *server) createSubject(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	v, err := s.st.CreateSubject(c.Context(), body.Name, body.Note, body.Reference)
+	v, err := s.st.CreateSubject(c.Context(), body.Name, body.Note, body.Reference, body.Size)
 	if err != nil {
 		return err
 	}
@@ -101,7 +101,7 @@ func (s *server) updateSubject(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	v, err := s.st.UpdateSubject(c.Context(), id, body.Name, body.Note, body.Reference)
+	v, err := s.st.UpdateSubject(c.Context(), id, body.Name, body.Note, body.Reference, body.Size)
 	return respond(c, v, err)
 }
 
@@ -202,9 +202,10 @@ func (s *server) deleteScore(c *fiber.Ctx) error {
 }
 
 type subjectBody struct {
-	Name      string `json:"name"`
-	Note      string `json:"note"`
-	Reference bool   `json:"reference"`
+	Name      string   `json:"name"`
+	Note      string   `json:"note"`
+	Reference bool     `json:"reference"`
+	Size      *float64 `json:"size"`
 }
 
 func (s *server) reorderSubjects(c *fiber.Ctx) error {
@@ -251,6 +252,9 @@ func parseSubject(c *fiber.Ctx) (subjectBody, error) {
 	body.Note = strings.TrimSpace(body.Note)
 	if body.Name == "" {
 		return body, fiber.NewError(fiber.StatusBadRequest, "name is required")
+	}
+	if body.Size != nil && *body.Size <= 0 {
+		return body, fiber.NewError(fiber.StatusBadRequest, "size must be greater than 0")
 	}
 	return body, nil
 }

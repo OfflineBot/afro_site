@@ -9,6 +9,7 @@ type Props = {
   onHideAll: () => void;
   colorOf?: (id: number) => string | undefined;
   isReference?: (id: number) => boolean;
+  metaOf?: (id: number) => string;
 };
 
 export default function Filters({
@@ -20,6 +21,7 @@ export default function Filters({
   onHideAll,
   colorOf,
   isReference,
+  metaOf,
 }: Props) {
   const anyReference = items.some((item) => isReference?.(item.id));
 
@@ -48,6 +50,7 @@ export default function Filters({
             const shown = isShown(item.id);
             const color = colorOf?.(item.id);
             const reference = isReference?.(item.id) ?? false;
+            const meta = metaOf?.(item.id);
             return (
               <button
                 key={item.id}
@@ -62,6 +65,7 @@ export default function Filters({
                   />
                 )}
                 {item.name}
+                {meta && <span className="chip-meta">{meta}</span>}
               </button>
             );
           })}
